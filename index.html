@@ -178,6 +178,9 @@ legend{padding:0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06e
 .drop input{max-width:100%}
 div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.settle{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:10px}
+.settle.done{border-color:var(--ok);background:var(--ok-soft)}
+.warnbox{margin:0;background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:14px}
 .tw{position:relative;flex:none}
 .tw .rm{position:absolute;top:-7px;right:-7px;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--sheet);color:var(--bad);font-size:15px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
 .addreq{position:relative;width:64px;height:64px;border-radius:8px;border:1.5px dashed var(--accent);color:var(--accent);display:grid;place-items:center;text-align:center;font-size:11px;font-weight:600;line-height:1.2;cursor:pointer;background:var(--sheet)}
@@ -442,17 +445,19 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
     let cum = 0, lunasPada = null;
     for (const p of pays) { cum += p.nominal; if (!lunasPada && cum >= totalAt(l, p.tanggal) - 0.5) lunasPada = p.tanggal; }
     const today = todayStr();
-    const ref = lunasPada || today;
+    const pl = l.pelunasan && l.pelunasan.tanggal ? l.pelunasan : null;
+    const ref = pl ? (lunasPada && lunasPada < pl.tanggal ? lunasPada : pl.tanggal) : (lunasPada || today);
     const total = totalAt(l, ref);
     const telat = Math.max(0, daysBetween(l.jatuhTempo, ref));
     const denda = telat * dendaPerHari(l);
-    const sisa = Math.max(0, total - cum);
+    let sisa = Math.max(0, total - cum), dibebaskan = 0;
+    if (pl) { dibebaskan = sisa; sisa = 0; lunasPada = pl.tanggal; }
     const sisaHari = daysBetween(today, l.jatuhTempo);
     let status = 'aktif';
     if (lunasPada) status = 'lunas';
     else if (sisaHari < 0) status = 'late';
     else if (sisaHari <= 3) status = 'soon';
-    return { total, bayar: cum, sisa, denda, telat, sisaHari, status, lunasPada, bunga: bunga(l) };
+    return { total, bayar: cum, sisa, denda, telat, sisaHari, status, lunasPada, bunga: bunga(l), dibebaskan, pelunasan: pl };
   }
   function statusPill(a) {
     if (a.status === 'lunas') return `<span class="pill lunas">Lunas ${tglID(a.lunasPada)}</span>`;
@@ -515,7 +520,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
         <span class="dir give" aria-hidden="true">${esc(initials(l.nama))}</span>
         <span style="min-width:0">
           <span class="name">${esc(l.nama)}</span>
-          <span class="meta">${l.barang ? `<span>${esc(l.barang)}</span>` : ''}<span>Pinjam ${rp(l.pokok)} · ${tglID(l.tglPinjam)}</span><span>JT ${tglID(l.jatuhTempo)}</span>${statusPill(a)}</span>
+          <span class="meta">${l.barang ? `<span>${esc(l.barang)}</span>` : ''}<span>Pinjam ${rp(l.pokok)} · ${tglID(l.tglPinjam)}</span><span>JT ${tglID(l.jatuhTempo)}</span>${statusPill(a)}${a.pelunasan && (a.pelunasan.bukti || []).length ? '<span>✓ ada bukti pelunasan</span>' : ''}</span>
         </span>
         <span class="amt">
           <span><span class="big">${a.status === 'lunas' ? rp(a.total) : rp(a.sisa)}</span><br><span class="small">${a.status === 'lunas' ? 'total dibayar' : 'sisa dari ' + rp(a.total)}</span></span>
@@ -972,7 +977,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
 
   // ---------- detail ----------
   function openDetail(id) {
-    detailId = id; pendingDelete = null;
+    detailId = id; pendingDelete = null; settleOpen = false; settleFiles = [];
     renderDetail();
     if (!$('#dlgDetail').open) $('#dlgDetail').showModal();
   }
@@ -984,6 +989,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
     const keep = body.querySelector('#payForm') ? {
       tgl: body.querySelector('#pTgl').value, nom: body.querySelector('#pNom').value, cat: body.querySelector('#pCat').value
     } : null;
+    const keepS = body.querySelector('#settleForm') ? { tgl: body.querySelector('#sTgl').value, cat: body.querySelector('#sCat').value } : null;
     $('#dTitle').textContent = l.nama;
     const pays = [...(l.pembayaran || [])].sort((x, y) => x.tanggal.localeCompare(y.tanggal));
     body.innerHTML = `
@@ -1043,6 +1049,30 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
           <div class="actions"><button class="btn primary" type="submit" id="paySave">Simpan pembayaran</button></div>
         </fieldset>
       </form>` : ''}
+      <div class="settle ${a.pelunasan ? 'done' : ''}">
+        <div class="section-title" style="margin:0">Pelunasan</div>
+        ${a.pelunasan ? `
+          <p style="margin:0"><b>Lunas ${tglID(a.pelunasan.tanggal)}</b>${a.dibebaskan >= 1 ? ` · sisa ${rp(a.dibebaskan)} dibebaskan` : ''}</p>
+          ${(a.pelunasan.bukti || []).length ? `<div class="thumbs">${a.pelunasan.bukti.map(p => proofHTML(p)).join('')}</div>` : '<p class="note" style="margin:0">Tanpa foto bukti.</p>'}
+          ${a.pelunasan.catatan ? `<p class="note" style="margin:0">${esc(a.pelunasan.catatan)}</p>` : ''}
+          ${pendingDelete === 'settle'
+            ? `<div class="confirm">Batalkan pelunasan dan hapus foto buktinya? <button class="btn small danger" type="button" data-unsettle-yes>Ya, batalkan</button><button class="btn small" type="button" data-cancel>Tidak</button></div>`
+            : `<div class="actions"><button class="btn small" type="button" data-unsettle>Batalkan pelunasan</button></div>`}
+        ` : settleOpen ? `
+          <form id="settleForm" novalidate class="grid1">
+            <div class="grid">
+              <label class="f"><span>Tanggal lunas</span><input id="sTgl" type="date" value="${a.lunasPada || todayStr()}"></label>
+              <div class="f full"><span id="sLbl">Foto bukti pelunasan</span><div class="drop"><div class="thumbs" id="sPrev" aria-labelledby="sLbl"></div></div><span class="hint">Mis. chat konfirmasi lunas, kuitansi, atau foto serah terima barang. Bisa lebih dari satu.</span></div>
+              <label class="f full"><span>Catatan (opsional)</span><input id="sCat" autocomplete="off" placeholder="mis. barang sudah dikembalikan"></label>
+            </div>
+            ${a.sisa >= 1 ? `<p class="warnbox">Masih ada sisa ${rp(a.sisa)}. Jika ditandai lunas, sisa ini dicatat sebagai dibebaskan.</p>` : ''}
+            <p class="err" id="settleErr" hidden></p>
+            <div class="actions"><button class="btn" type="button" data-settle-cancel>Batal</button><button class="btn primary" type="submit" id="settleSave">Simpan pelunasan</button></div>
+          </form>
+        ` : `
+          <p class="note" style="margin:0">${a.status === 'lunas' ? 'Pembayaran sudah menutup tagihan. Lampirkan bukti pelunasan sebagai tanda pinjaman selesai.' : 'Jika pinjaman sudah selesai, tandai lunas dan lampirkan buktinya, mis. chat konfirmasi lunas atau foto serah terima barang.'}</p>
+          <div class="actions"><button class="btn ${a.status === 'lunas' ? 'primary' : ''}" type="button" data-settle-open>${a.status === 'lunas' ? 'Lampirkan bukti pelunasan' : 'Tandai lunas'}</button></div>`}
+      </div>
       ${pendingDelete === 'loan' ? `<div class="confirm">Hapus catatan ${esc(l.nama)} beserta semua bukti transfernya? Ini tidak bisa dibatalkan. <button class="btn small danger" type="button" data-delloan-yes>Ya, hapus</button><button class="btn small" type="button" data-cancel>Batal</button></div>` : ''}
       <div class="actions">
         <button class="btn danger" type="button" data-delloan>Hapus</button>
@@ -1050,6 +1080,8 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
         <button class="btn" type="button" data-edit="${l.id}">Ubah</button>
       </div>
       ${a.status !== 'lunas' && downloads ? `<p class="note" style="margin:0;text-align:right">File .ics berisi pengingat H-3, H-1, dan hari jatuh tempo. Buka file itu untuk menambahkannya ke Google Calendar atau kalender HP.</p>` : ''}`;
+    if (keepS) { const a1 = body.querySelector('#sTgl'), a2 = body.querySelector('#sCat'); if (a1) a1.value = keepS.tgl; if (a2) a2.value = keepS.cat; }
+    paintSettle();
     if (keep) { body.querySelector('#pTgl').value = keep.tgl; body.querySelector('#pNom').value = keep.nom; body.querySelector('#pCat').value = keep.cat; }
     const pf = body.querySelector('#payForm');
     if (pf) {
@@ -1098,6 +1130,59 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
     }
   }
 
+
+  // ---------- pelunasan (bukti lunas) ----------
+  let settleOpen = false, settleFiles = [];
+  function paintSettle() {
+    const box = document.getElementById('sPrev'); if (!box) return;
+    box.innerHTML = settleFiles.map((f, i) => `<span class="tw">${f.type.startsWith('image/') ? `<img class="thumb" src="${f._url}" alt="Bukti pelunasan" data-view="${f._url}">` : '<span class="pdfthumb">PDF</span>'}<button type="button" class="rm" data-rmsettle="${i}" aria-label="Hapus foto">×</button></span>`).join('')
+      + '<label class="addreq">+ Tambah<br>foto<input id="fSettle" type="file" accept="image/*,application/pdf" multiple aria-label="Tambah foto bukti pelunasan"></label>';
+  }
+  const dBody = $('#dBody');
+  dBody.addEventListener('change', e => {
+    if (e.target.id !== 'fSettle') return;
+    [...e.target.files].forEach(f => { f._url = URL.createObjectURL(f); settleFiles.push(f); });
+    paintSettle();
+  });
+  dBody.addEventListener('click', async e => {
+    const t = e.target.closest('[data-settle-open],[data-settle-cancel],[data-rmsettle],[data-unsettle],[data-unsettle-yes]');
+    if (!t) return;
+    e.preventDefault();
+    if (t.hasAttribute('data-settle-open')) { settleOpen = true; settleFiles = []; renderDetail(); const f = document.getElementById('sTgl'); if (f) f.focus(); return; }
+    if (t.hasAttribute('data-settle-cancel')) { settleOpen = false; settleFiles = []; renderDetail(); return; }
+    if (t.hasAttribute('data-rmsettle')) { settleFiles.splice(+t.dataset.rmsettle, 1); paintSettle(); return; }
+    if (t.hasAttribute('data-unsettle')) { pendingDelete = 'settle'; renderDetail(); return; }
+    if (t.hasAttribute('data-unsettle-yes')) {
+      const l = loans.find(x => x.id === detailId); if (!l || !l.pelunasan) return;
+      const old = l.pelunasan.bukti || [];
+      pendingDelete = null;
+      try {
+        await col.doc(l.id).update({ pelunasan: null, updatedAt: new Date().toISOString() });
+        if (assets) old.forEach(b => assets.delete(b.id).catch(() => {}));
+        toast('Pelunasan dibatalkan');
+      } catch (ex) { toast('Gagal membatalkan pelunasan'); renderDetail(); }
+    }
+  });
+  dBody.addEventListener('submit', async e => {
+    if (e.target.id !== 'settleForm') return;
+    e.preventDefault();
+    const l = loans.find(x => x.id === detailId); if (!l) return;
+    const err = document.getElementById('settleErr'), tgl = document.getElementById('sTgl').value, cat = document.getElementById('sCat').value.trim();
+    if (!tgl) { err.textContent = 'Isi tanggal lunas.'; err.hidden = false; return; }
+    if (tgl < l.tglPinjam) { err.textContent = 'Tanggal lunas tidak boleh sebelum tanggal pinjam.'; err.hidden = false; return; }
+    const btn = document.getElementById('settleSave'); btn.disabled = true; btn.textContent = 'Menyimpan…';
+    try {
+      const bukti = [];
+      for (const f of settleFiles) bukti.push(await uploadProof(f));
+      settleFiles = []; settleOpen = false;
+      await col.doc(l.id).update({ pelunasan: { tanggal: tgl, bukti, catatan: cat, dicatat: new Date().toISOString() }, updatedAt: new Date().toISOString() });
+      toast('Pinjaman ditandai lunas');
+    } catch (ex) {
+      err.textContent = 'Gagal menyimpan: ' + (ex && ex.message ? ex.message : 'coba lagi.'); err.hidden = false;
+      btn.disabled = false; btn.textContent = 'Simpan pelunasan';
+    }
+  });
+
   // ---------- .ics reminder ----------
   function icsFor(l) {
     const a = analyze(l);
@@ -1141,7 +1226,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
     if (t.hasAttribute('data-delloan-yes') && l) {
       try {
         await col.doc(l.id).delete();
-        if (assets) [l.buktiPinjam, ...(l.buktiPermintaan || []), ...(l.pembayaran || []).map(p => p.bukti)].filter(Boolean).forEach(b => assets.delete(b.id).catch(() => {}));
+        if (assets) [l.buktiPinjam, ...(l.buktiPermintaan || []), ...((l.pelunasan && l.pelunasan.bukti) || []), ...(l.pembayaran || []).map(p => p.bukti)].filter(Boolean).forEach(b => assets.delete(b.id).catch(() => {}));
         $('#dlgDetail').close(); toast('Catatan dihapus');
       } catch (ex) { toast('Gagal menghapus catatan'); }
       return;
@@ -1530,7 +1615,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
 
         // receipt photos: upload what Drive lacks, download what this device lacks
         const refs = new Map();
-        merged.loans.forEach(l => [l.buktiPinjam, ...(l.buktiPermintaan || []), ...(l.pembayaran || []).map(p => p.bukti)].forEach(b => { if (b && b.id) refs.set(b.id, b); }));
+        merged.loans.forEach(l => [l.buktiPinjam, ...(l.buktiPermintaan || []), ...((l.pelunasan && l.pelunasan.bukti) || []), ...(l.pembayaran || []).map(p => p.bukti)].forEach(b => { if (b && b.id) refs.set(b.id, b); }));
         const remoteBlobs = new Map();
         files.forEach(f => { const m = /^bukti-([A-Za-z0-9_-]+)\.[a-z]+$/.exec(f.name); if (m) remoteBlobs.set(m[1], f); });
         const localIds = new Set(await idb.keys('blobs'));
