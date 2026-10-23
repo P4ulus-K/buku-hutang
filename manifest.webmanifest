@@ -1,0 +1,16 @@
+{
+  "name": "Buku Hutang Piutang",
+  "short_name": "Buku Hutang",
+  "description": "Catatan piutang pribadi dengan bunga, jatuh tempo, bukti transfer, dan backup Google Drive.",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F5F1",
+  "theme_color": "#0E6656",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

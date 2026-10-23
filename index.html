@@ -1,0 +1,1557 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Buku Hutang">
+<meta name="theme-color" content="#F2F5F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1715" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Buku Hutang Piutang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: ledger book — summary strip on top, list of entries, detail opens as a side sheet */
+:root{
+  --paper:#F2F5F1; --sheet:#FFFFFF; --ink:#13231E; --muted:#5B6B65; --line:#D9E1DC;
+  --accent:#0E6656; --accent-ink:#FFFFFF; --accent-soft:#DCEEE8;
+  --give:#0E6656; --give-soft:#DCEEE8;   /* piutang: uang saya di orang lain */
+  --owe:#9A5B12; --owe-soft:#F6EAD7;     /* hutang: uang orang lain di saya */
+  --warn:#A86A00; --warn-soft:#FBEFD2; --bad:#B3261E; --bad-soft:#FBE3E0; --ok:#2C7A3F; --ok-soft:#E0F1E4;
+  --shadow:0 10px 30px rgba(19,35,30,.10);
+  --f-display:"Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --f-num:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0F1715; --sheet:#16211E; --ink:#E5EEEA; --muted:#93A59E; --line:#283632;
+  --accent:#4FBFA6; --accent-ink:#0B1412; --accent-soft:#183A33;
+  --give:#5CC9AF; --give-soft:#173530; --owe:#E2A85A; --owe-soft:#3A2A14;
+  --warn:#EDB84A; --warn-soft:#3A2E12; --bad:#F2867D; --bad-soft:#401C1A; --ok:#7BD08F; --ok-soft:#173322;
+  --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme:dark }}
+:root[data-theme="dark"]{
+  --paper:#0F1715; --sheet:#16211E; --ink:#E5EEEA; --muted:#93A59E; --line:#283632;
+  --accent:#4FBFA6; --accent-ink:#0B1412; --accent-soft:#183A33;
+  --give:#5CC9AF; --give-soft:#173530; --owe:#E2A85A; --owe-soft:#3A2A14;
+  --warn:#EDB84A; --warn-soft:#3A2E12; --bad:#F2867D; --bad-soft:#401C1A; --ok:#7BD08F; --ok-soft:#173322;
+  --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme:dark }
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top, 0px);padding-bottom:env(safe-area-inset-bottom, 0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+.chip{gap:7px}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.chip.ok .dot{background:var(--ok)} .chip.warn .dot{background:var(--warn)} .chip.bad .dot{background:var(--bad)} .chip.busy .dot{background:var(--accent)}
+.drv-status{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:4px;font-size:14px}
+.drv-status b{font-size:15px}
+.grid1{display:grid;gap:10px}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}
+header.top h1{font-size:clamp(28px,5vw,40px);font-weight:700;letter-spacing:-.02em}
+header.top p{margin:4px 0 0;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--sheet);border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--bad);border-color:var(--bad-soft)}
+.btn.small{padding:6px 10px;font-size:13px}
+.btn[disabled]{opacity:.55;cursor:wait}
+
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:22px}
+.summary div{background:var(--sheet);padding:14px 16px;min-width:0}
+.summary .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.summary .val{font-family:var(--f-num);font-size:clamp(17px,2.4vw,22px);font-weight:600;margin-top:4px;overflow-wrap:anywhere}
+.summary .sub{font-size:12px;color:var(--muted)}
+.summary .give .val{color:var(--give)} .summary .owe .val{color:var(--owe)}
+.summary .late .val{color:var(--bad)} .summary .soon .val{color:var(--warn)}
+@media (max-width:720px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.attention{border:1px solid var(--line);background:var(--sheet);border-radius:14px;padding:12px 16px;margin-bottom:22px;display:grid;gap:8px}
+.attention h2{font-size:15px;font-family:var(--f-body);font-weight:600}
+.attention .row{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;cursor:pointer;padding:6px 0;border-top:1px dashed var(--line)}
+.attention .row:first-of-type{border-top:0}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.tabs{display:flex;gap:4px;background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:3px;flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:500}
+.tabs button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
+.search{border:1px solid var(--line);background:var(--sheet);border-radius:10px;padding:8px 12px;min-width:0;width:220px;max-width:100%}
+
+.list{display:grid;gap:10px}
+.entry{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;width:100%}
+.entry:hover{border-color:var(--muted)}
+.dir{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:13px}
+.dir.give{background:var(--give-soft);color:var(--give)} .dir.owe{background:var(--owe-soft);color:var(--owe)}
+.entry .name{font-weight:600;overflow-wrap:anywhere}
+.entry .meta{color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.entry .amt{text-align:right}
+.entry .amt .big{font-family:var(--f-num);font-weight:600;font-size:16px}
+.entry .amt .small{font-size:12px;color:var(--muted)}
+.bar{height:4px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:6px;width:120px;margin-left:auto}
+.bar i{display:block;height:100%;background:var(--accent)}
+@media (max-width:560px){.entry{grid-template-columns:auto minmax(0,1fr)}.entry .amt{grid-column:1/-1;text-align:left;display:flex;justify-content:space-between;align-items:end;gap:8px}.bar{margin-left:0}}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.aktif{background:var(--accent-soft);color:var(--accent)}
+.pill.soon{background:var(--warn-soft);color:var(--warn)}
+.pill.late{background:var(--bad-soft);color:var(--bad)}
+.pill.lunas{background:var(--ok-soft);color:var(--ok)}
+
+.empty{background:var(--sheet);border:1px dashed var(--line);border-radius:14px;padding:32px 20px;text-align:center;color:var(--muted)}
+.empty h3{color:var(--ink);font-size:20px;margin-bottom:6px}
+.empty p{max-width:52ch;margin:0 auto 16px}
+
+dialog{border:0;padding:0;background:var(--sheet);color:var(--ink);border-radius:16px;box-shadow:var(--shadow);width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(10,20,17,.45)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--sheet);z-index:2}
+.dlg-head h2{font-size:20px}
+.dlg-body{padding:18px 20px;display:grid;gap:16px}
+.x{border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1;padding:4px 8px}
+
+form .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+form .full{grid-column:1/-1}
+@media (max-width:520px){form .grid{grid-template-columns:minmax(0,1fr)}}
+label.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
+label.f input,label.f select,label.f textarea{border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:9px 11px;color:var(--ink);font-size:15px;width:100%;min-width:0}
+label.f textarea{min-height:64px;resize:vertical}
+.hint{font-size:12px;color:var(--muted);font-weight:400}
+.scan{border:1.5px dashed var(--accent);background:var(--accent-soft);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center}
+.scan .shot{width:72px;height:72px;border-radius:10px;background:var(--sheet);border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;color:var(--accent);font-family:var(--f-display);font-weight:700;font-size:12px;text-align:center;line-height:1.2}
+.scan .shot img{width:100%;height:100%;object-fit:cover}
+.scan h3{font-size:16px}
+.scan p{margin:2px 0 8px;font-size:13px;color:var(--muted)}
+.scan .btns{display:flex;flex-wrap:wrap;gap:8px}
+.scan input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.scan label.btn{position:relative}
+.scan label.btn:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.scan .status{grid-column:1/-1;font-size:13px;margin:0}
+.scan .status.ok{color:var(--ok)} .scan .status.bad{color:var(--bad)}
+.scan .found{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.scan .found span{background:var(--sheet);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px}
+.head-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lock{position:fixed;inset:0;z-index:40;background:var(--paper);overflow:auto;display:grid;place-items:center;padding-block:calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.lock-card{width:100%;max-width:380px;background:var(--sheet);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:28px 24px;display:grid;gap:14px}
+.lock-mark{width:52px;height:52px;border-radius:14px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:18px}
+.lock h1{font-size:24px;letter-spacing:-.01em}
+.lock-text{margin:0;color:var(--muted);font-size:14px}
+#lockForm,#recShow{display:grid;gap:12px}
+#lockForm[hidden],#recShow[hidden]{display:none}
+.lock .btn.primary{justify-content:center;padding:11px 14px}
+.showpw{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.linkbtn{border:0;background:none;color:var(--accent);cursor:pointer;font-size:14px;padding:4px;justify-self:center}
+.sr-user{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden}
+.reccode{font-size:22px;font-weight:600;letter-spacing:.08em;text-align:center;background:var(--paper);border:1px dashed var(--accent);border-radius:12px;padding:14px;user-select:all;overflow-wrap:anywhere}
+.filled{box-shadow:0 0 0 2px var(--warn-soft);border-color:var(--warn)!important}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;margin-right:6px}
+@media (prefers-reduced-motion: no-preference){.spin{animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg label{position:relative;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;display:grid;gap:2px;background:var(--paper)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent)}
+.seg b{font-size:14px;color:var(--ink)} .seg span{font-size:12px;color:var(--muted)}
+fieldset{border:1px solid var(--line);border-radius:12px;padding:12px 14px 14px;margin:0;display:grid;gap:12px;min-width:0}
+legend{padding:0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+
+.calc{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:4px}
+.calc .r{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.calc .r span:first-child{color:var(--muted)}
+.calc .r.tot{border-top:1px solid var(--line);padding-top:6px;margin-top:4px;font-weight:600;font-size:16px}
+.calc .formula{font-size:12px;color:var(--muted);font-family:var(--f-num)}
+
+.drop{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--paper)}
+.drop input{max-width:100%}
+.thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid var(--line);background:var(--paper);cursor:zoom-in;flex:none}
+.pdfthumb{width:64px;height:64px;border-radius:8px;border:1px solid var(--line);display:grid;place-items:center;font-family:var(--f-num);font-size:12px;color:var(--muted);text-decoration:none;flex:none}
+
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px}
+.facts div{min-width:0}
+.facts dt{font-size:12px;color:var(--muted)} .facts dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:8px}
+.pay{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.pay:first-child{border-top:0}
+.pay .noproof{width:64px;height:64px;border-radius:8px;border:1px dashed var(--line);display:grid;place-items:center;font-size:11px;color:var(--muted);text-align:center}
+.confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:8px 12px;font-size:14px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.note{font-size:13px;color:var(--muted)}
+.err{color:var(--bad);font-size:13px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-size:14px;z-index:50;box-shadow:var(--shadow)}
+#viewer img{display:block;max-width:100%;max-height:80dvh;margin:0 auto}
+@media (prefers-reduced-motion: no-preference){dialog[open]{animation:pop .16s ease-out}@keyframes pop{from{transform:translateY(8px);opacity:.6}}}
+</style>
+</head>
+<body>
+
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <div class="lock-mark" aria-hidden="true">Rp</div>
+    <h1 id="lockTitle">Buku Hutang Piutang</h1>
+    <p class="lock-text" id="lockText"><span class="spin" aria-hidden="true"></span>Memuat…</p>
+    <form id="lockForm" novalidate hidden>
+      <input type="text" name="username" autocomplete="username" value="Buku Hutang Piutang" tabindex="-1" aria-hidden="true" class="sr-user">
+      <label class="f" id="pw0Wrap"><span>Kata sandi saat ini</span><input id="pw0" type="password" autocomplete="current-password"></label>
+      <label class="f" id="recWrap"><span>Kode pemulihan</span><input id="recIn" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX"></label>
+      <label class="f" id="pw1Wrap"><span id="pw1Lbl">Kata sandi</span><input id="pw1" type="password" autocomplete="current-password"></label>
+      <label class="f" id="pw2Wrap"><span>Ulangi kata sandi baru</span><input id="pw2" type="password" autocomplete="new-password"></label>
+      <label class="showpw"><input type="checkbox" id="showPw"> Tampilkan kata sandi</label>
+      <p class="err" id="lockErr" hidden></p>
+      <button class="btn primary" id="lockBtn" type="submit">Buka</button>
+      <button class="linkbtn" id="lockAlt" type="button">Lupa kata sandi?</button>
+    </form>
+    <div id="recShow" hidden>
+      <p class="lock-text">Simpan <b>kode pemulihan</b> ini di tempat aman (mis. screenshot atau app Catatan). Kode ini satu-satunya cara mengatur ulang kata sandi jika Anda lupa.</p>
+      <div class="reccode num" id="recCode"></div>
+      <button class="btn small" type="button" id="recCopy">Salin kode</button>
+      <label class="showpw"><input type="checkbox" id="recOk"> Saya sudah menyimpan kode ini</label>
+      <button class="btn primary" type="button" id="recDone" disabled>Buka buku</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div>
+      <h1>Buku Hutang Piutang</h1>
+      <p>Catat pinjaman, hitung bunga, simpan bukti transfer, dan pantau jatuh tempo.</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn small chip" id="btnDrive" type="button"><span class="dot" aria-hidden="true"></span><span id="driveLbl">Google Drive</span></button>
+      <button class="btn small" id="btnLock" type="button">Kunci</button>
+      <button class="btn small" id="btnPw" type="button">Ubah kata sandi</button>
+      <button class="btn primary" id="btnNew" type="button">+ Catat pinjaman</button>
+    </div>
+  </header>
+
+  <section class="summary" aria-label="Ringkasan">
+    <div class="give"><div class="lbl">Piutang belum kembali</div><div class="val" id="sGive">Rp0</div><div class="sub" id="sGiveN">0 pinjaman</div></div>
+    <div class="owe"><div class="lbl">Bunga &amp; denda berjalan</div><div class="val" id="sOwe">Rp0</div><div class="sub">dari pinjaman belum lunas</div></div>
+    <div class="soon"><div class="lbl">Jatuh tempo ≤ 3 hari</div><div class="val" id="sSoon">0</div><div class="sub">pinjaman</div></div>
+    <div class="late"><div class="lbl">Lewat jatuh tempo</div><div class="val" id="sLate">0</div><div class="sub">pinjaman</div></div>
+  </section>
+
+  <section class="attention" id="attention" hidden aria-label="Perlu perhatian">
+    <h2>Perlu perhatian</h2>
+    <div id="attnList"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="tabs" role="group" aria-label="Saring">
+      <button type="button" data-f="aktif" aria-pressed="true">Belum lunas</button>
+      <button type="button" data-f="lunas" aria-pressed="false">Lunas</button>
+      <button type="button" data-f="semua" aria-pressed="false">Semua</button>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Cari nama…" aria-label="Cari nama">
+  </div>
+
+  <div class="list" id="list">
+    <div class="empty" id="loading"><p>Memuat catatan…</p></div>
+  </div>
+</div>
+
+<!-- Form pinjaman -->
+<dialog id="dlgLoan" aria-labelledby="loanTitle">
+  <form id="loanForm" method="dialog" novalidate>
+    <div class="dlg-head"><h2 id="loanTitle">Catat pinjaman</h2><button class="x" type="button" data-close aria-label="Tutup">×</button></div>
+    <div class="dlg-body">
+      <div class="scan" id="scanBox">
+        <div class="shot" id="scanShot">FOTO<br>BUKTI</div>
+        <div style="min-width:0">
+          <h3>Mulai dari bukti transfer</h3>
+          <p>Foto atau pilih screenshot bukti transfer. Nominal, tanggal, nama penerima, bank, dan no. referensi akan terisi otomatis. Periksa hasilnya, terutama nama.</p>
+          <div class="btns">
+            <label class="btn primary small">Foto bukti<input id="scanCam" type="file" accept="image/*" capture="environment"></label>
+            <label class="btn small">Pilih dari galeri<input id="scanPick" type="file" accept="image/*"></label>
+          </div>
+        </div>
+        <p class="status" id="scanStatus" hidden></p>
+        <div class="found" id="scanFound" hidden></div>
+      </div>
+      <div class="grid">
+        <label class="f full"><span>Nama peminjam</span><input id="fNama" required autocomplete="off" placeholder="mis. Budi Santoso"></label>
+        <label class="f"><span>Nominal pokok (Rp)</span><input id="fPokok" inputmode="numeric" autocomplete="off" placeholder="1.000.000" required></label>
+        <label class="f"><span>Tanggal pinjam</span><input id="fTgl" type="date" required></label>
+      </div>
+
+      <fieldset>
+        <legend>Bunga</legend>
+        <div class="grid">
+          <label class="f"><span>Jenis bunga</span>
+            <select id="fBungaTipe">
+              <option value="none">Tanpa bunga</option>
+              <option value="bulan">% per bulan (flat)</option>
+              <option value="tahun">% per tahun (flat)</option>
+              <option value="hari">% per hari (flat)</option>
+              <option value="nominal">Nominal tetap (Rp)</option>
+            </select>
+          </label>
+          <label class="f" id="bungaValWrap" hidden><span id="bungaValLbl">Besar bunga (%)</span><input id="fBungaVal" inputmode="decimal" autocomplete="off" placeholder="2"></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Jangka waktu</legend>
+        <div class="grid">
+          <label class="f"><span>Jumlah hari</span><input id="fHari" type="number" min="1" step="1" placeholder="30" required></label>
+          <label class="f"><span>Tanggal jatuh tempo</span><input id="fJT" type="date" required><span class="hint">Terisi otomatis dari jumlah hari, dan sebaliknya.</span></label>
+          <label class="f full"><span>Denda keterlambatan (opsional)</span>
+            <div style="display:flex;gap:8px;min-width:0">
+              <input id="fDenda" inputmode="decimal" autocomplete="off" placeholder="0" style="flex:1">
+              <select id="fDendaTipe" style="width:auto">
+                <option value="persen">% pokok / hari</option>
+                <option value="nominal">Rp / hari</option>
+              </select>
+            </div>
+            <span class="hint">Dihitung per hari setelah jatuh tempo sampai lunas. Kosongkan jika tidak ada.</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="calc" aria-live="polite" id="calcBox"></div>
+
+      <div class="grid">
+        <label class="f full"><span>Bukti transfer pemberian pinjaman</span>
+          <div class="drop">
+            <div id="loanProofPrev"></div>
+            <input id="fBukti" type="file" accept="image/*,application/pdf">
+          </div>
+          <span class="hint" id="assetsHint">Foto/screenshot atau PDF. Foto diperkecil otomatis agar hemat ruang.</span>
+        </label>
+        <label class="f full"><span>Catatan (opsional)</span><textarea id="fCatatan" placeholder="mis. untuk biaya servis motor, kontak WA 0812…"></textarea></label>
+      </div>
+      <p class="err" id="loanErr" hidden></p>
+      <div class="actions">
+        <button class="btn" type="button" data-close>Batal</button>
+        <button class="btn primary" type="submit" id="loanSave">Simpan pinjaman</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Detail -->
+<dialog id="dlgDetail" aria-labelledby="dTitle">
+  <div class="dlg-head"><h2 id="dTitle">Detail</h2><button class="x" type="button" data-close aria-label="Tutup">×</button></div>
+  <div class="dlg-body" id="dBody"></div>
+</dialog>
+
+<!-- Google Drive -->
+<dialog id="dlgDrive" aria-labelledby="drvTitle">
+  <div class="dlg-head"><h2 id="drvTitle">Google Drive</h2><button class="x" type="button" data-close aria-label="Tutup">×</button></div>
+  <div class="dlg-body">
+    <p class="note" style="margin:0">Catatan, kata sandi (dalam bentuk acak), dan foto bukti disalin ke folder <b>Buku Hutang Piutang</b> di Google Drive Anda. Aplikasi hanya bisa melihat file yang dibuatnya sendiri, bukan file Drive Anda yang lain.</p>
+    <div class="drv-status" id="drvStatus"></div>
+    <form id="drvCfg" class="grid1" novalidate hidden>
+      <label class="f"><span>OAuth Client ID dari Google Cloud</span><input id="drvClient" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="1234…apps.googleusercontent.com"></label>
+      <span class="hint">Cara membuatnya ada di PANDUAN-SETUP.md, langkah 3.</span>
+      <p class="err" id="drvErr" hidden></p>
+      <div class="actions"><button class="btn primary" type="submit">Simpan Client ID</button></div>
+    </form>
+    <div class="actions" id="drvActions"></div>
+  </div>
+</dialog>
+
+<!-- Image viewer -->
+<dialog id="viewer" aria-label="Bukti transfer">
+  <div class="dlg-head"><h2 id="vTitle">Bukti transfer</h2><button class="x" type="button" data-close aria-label="Tutup">×</button></div>
+  <div class="dlg-body"><img id="vImg" alt="Bukti transfer"></div>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  // ---------- helpers ----------
+  const $ = s => document.querySelector(s);
+  const fmt = new Intl.NumberFormat('id-ID', {maximumFractionDigits: 0});
+  const rp = n => (n < 0 ? '-Rp' : 'Rp') + fmt.format(Math.round(Math.abs(n)));
+  const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const pad = n => String(n).padStart(2, '0');
+  const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+  const toUTC = s => { const [y,m,d] = s.split('-').map(Number); return Date.UTC(y, m-1, d); };
+  const daysBetween = (a, b) => Math.round((toUTC(b) - toUTC(a)) / 86400000);
+  const addDays = (s, n) => { const t = new Date(toUTC(s) + n*86400000); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth()+1)}-${pad(t.getUTCDate())}`; };
+  const tglID = s => { if (!s) return '—'; const [y,m,d] = s.split('-').map(Number); return `${d} ${MONTHS[m-1]} ${y}`; };
+  const digits = v => Number(String(v || '').replace(/[^\d]/g, '')) || 0;
+  const dec = v => { const n = parseFloat(String(v || '').replace(',', '.')); return isFinite(n) ? n : 0; };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const initials = s => (String(s || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase();
+  const toast = msg => { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600); };
+
+  // ---------- calculations ----------
+  function bunga(l) {
+    const p = l.pokok, v = l.bungaVal || 0, h = l.hari || 0;
+    switch (l.bungaTipe) {
+      case 'bulan': return p * v / 100 * h / 30;
+      case 'tahun': return p * v / 100 * h / 365;
+      case 'hari': return p * v / 100 * h;
+      case 'nominal': return v;
+      default: return 0;
+    }
+  }
+  function bungaFormula(l) {
+    const p = fmt.format(l.pokok || 0), v = String(l.bungaVal || 0).replace('.', ','), h = l.hari || 0;
+    switch (l.bungaTipe) {
+      case 'bulan': return `${p} × ${v}% × ${h}/30 hari`;
+      case 'tahun': return `${p} × ${v}% × ${h}/365 hari`;
+      case 'hari': return `${p} × ${v}% × ${h} hari`;
+      case 'nominal': return 'bunga nominal tetap';
+      default: return 'tanpa bunga';
+    }
+  }
+  const dendaPerHari = l => !l.denda ? 0 : (l.dendaTipe === 'nominal' ? l.denda : l.pokok * l.denda / 100);
+  // total owed as of a given date (denda accrues after jatuh tempo)
+  function totalAt(l, date) {
+    const telat = Math.max(0, daysBetween(l.jatuhTempo, date));
+    return l.pokok + bunga(l) + telat * dendaPerHari(l);
+  }
+  function analyze(l) {
+    const pays = [...(l.pembayaran || [])].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    let cum = 0, lunasPada = null;
+    for (const p of pays) { cum += p.nominal; if (!lunasPada && cum >= totalAt(l, p.tanggal) - 0.5) lunasPada = p.tanggal; }
+    const today = todayStr();
+    const ref = lunasPada || today;
+    const total = totalAt(l, ref);
+    const telat = Math.max(0, daysBetween(l.jatuhTempo, ref));
+    const denda = telat * dendaPerHari(l);
+    const sisa = Math.max(0, total - cum);
+    const sisaHari = daysBetween(today, l.jatuhTempo);
+    let status = 'aktif';
+    if (lunasPada) status = 'lunas';
+    else if (sisaHari < 0) status = 'late';
+    else if (sisaHari <= 3) status = 'soon';
+    return { total, bayar: cum, sisa, denda, telat, sisaHari, status, lunasPada, bunga: bunga(l) };
+  }
+  function statusPill(a) {
+    if (a.status === 'lunas') return `<span class="pill lunas">Lunas ${tglID(a.lunasPada)}</span>`;
+    if (a.status === 'late') return `<span class="pill late">Telat ${-a.sisaHari} hari</span>`;
+    if (a.status === 'soon') return `<span class="pill soon">${a.sisaHari === 0 ? 'Jatuh tempo hari ini' : a.sisaHari + ' hari lagi'}</span>`;
+    return `<span class="pill aktif">${a.sisaHari} hari lagi</span>`;
+  }
+
+  // ---------- state ----------
+  let db = null, assets = null, downloads = null, col = null;
+  let loans = [];       // [{id, ...data}]
+  let filter = 'aktif', query = '';
+  let editingId = null, detailId = null, pendingDelete = null;
+  let readyState = 'loading'; // loading | ready | noaccess
+
+  // ---------- render list ----------
+  function render() {
+    const list = $('#list');
+    const rows = loans.map(l => ({ l, a: analyze(l) }));
+
+    // summary
+    const act = rows.filter(r => r.a.status !== 'lunas');
+    $('#sGive').textContent = rp(act.reduce((s, r) => s + r.a.sisa, 0));
+    $('#sGiveN').textContent = `${act.length} pinjaman`;
+    $('#sOwe').textContent = rp(act.reduce((s, r) => s + r.a.bunga + r.a.denda, 0));
+    $('#sSoon').textContent = act.filter(r => r.a.status === 'soon').length;
+    $('#sLate').textContent = act.filter(r => r.a.status === 'late').length;
+
+    // attention
+    const attn = act.filter(r => r.a.status === 'soon' || r.a.status === 'late').sort((x, y) => x.a.sisaHari - y.a.sisaHari);
+    $('#attention').hidden = attn.length === 0;
+    $('#attnList').innerHTML = attn.map(r => `
+      <div class="row" data-open="${r.l.id}" role="button" tabindex="0">
+        ${statusPill(r.a)}
+        <span><b>${esc(r.l.nama)}</b> · masih harus membayar <span class="num">${rp(r.a.sisa)}</span></span>
+        <span class="note">jatuh tempo ${tglID(r.l.jatuhTempo)}</span>
+      </div>`).join('');
+
+    if (readyState === 'loading') return;
+    if (readyState === 'noaccess') {
+      list.innerHTML = `<div class="empty"><h3>Catatan belum bisa dibuka</h3><p>Penyimpanan di perangkat ini tidak bisa dibuka. Pastikan tidak memakai mode Pribadi, lalu muat ulang.</p></div>`;
+      return;
+    }
+    if (loans.length === 0) {
+      list.innerHTML = `<div class="empty"><h3>Belum ada catatan</h3><p>Tambahkan pinjaman pertama: siapa, berapa, bunganya, kapan jatuh tempo, lalu lampirkan bukti transfernya. Total dan status dihitung otomatis.</p><button class="btn primary" type="button" data-new>+ Catat pinjaman pertama</button></div>`;
+      return;
+    }
+
+    let shown = rows;
+    if (filter === 'aktif') shown = rows.filter(r => r.a.status !== 'lunas');
+    else if (filter === 'lunas') shown = rows.filter(r => r.a.status === 'lunas');
+    if (query) shown = shown.filter(r => r.l.nama.toLowerCase().includes(query));
+    const rank = { late: 0, soon: 1, aktif: 2, lunas: 3 };
+    shown.sort((x, y) => rank[x.a.status] - rank[y.a.status] || x.l.jatuhTempo.localeCompare(y.l.jatuhTempo));
+
+    if (!shown.length) { list.innerHTML = `<div class="empty"><p>Tidak ada catatan untuk saringan ini.</p></div>`; return; }
+    list.innerHTML = shown.map(({ l, a }) => {
+      const pct = a.total ? Math.min(100, a.bayar / a.total * 100) : 0;
+      return `<button class="entry" type="button" data-open="${l.id}">
+        <span class="dir give" aria-hidden="true">${esc(initials(l.nama))}</span>
+        <span style="min-width:0">
+          <span class="name">${esc(l.nama)}</span>
+          <span class="meta"><span>Pinjam ${rp(l.pokok)} · ${tglID(l.tglPinjam)}</span><span>JT ${tglID(l.jatuhTempo)}</span>${statusPill(a)}</span>
+        </span>
+        <span class="amt">
+          <span><span class="big">${a.status === 'lunas' ? rp(a.total) : rp(a.sisa)}</span><br><span class="small">${a.status === 'lunas' ? 'total dibayar' : 'sisa dari ' + rp(a.total)}</span></span>
+          <span class="bar" aria-hidden="true"><i style="width:${pct}%"></i></span>
+        </span>
+      </button>`;
+    }).join('');
+  }
+
+  // ---------- loan form ----------
+  const form = $('#loanForm');
+  let loanFile = null, loanExistingProof = null;
+
+  function readForm() {
+    return {
+      jenis: 'piutang',
+      nama: $('#fNama').value.trim(),
+      pokok: digits($('#fPokok').value),
+      tglPinjam: $('#fTgl').value,
+      bungaTipe: $('#fBungaTipe').value,
+      bungaVal: $('#fBungaTipe').value === 'nominal' ? digits($('#fBungaVal').value) : dec($('#fBungaVal').value),
+      hari: parseInt($('#fHari').value, 10) || 0,
+      jatuhTempo: $('#fJT').value,
+      denda: $('#fDendaTipe').value === 'nominal' ? digits($('#fDenda').value) : dec($('#fDenda').value),
+      dendaTipe: $('#fDendaTipe').value,
+      catatan: $('#fCatatan').value.trim()
+    };
+  }
+  function updateCalc() {
+    const f = readForm();
+    const t = $('#fBungaTipe').value;
+    $('#bungaValWrap').hidden = t === 'none';
+    $('#bungaValLbl').textContent = t === 'nominal' ? 'Besar bunga (Rp)' : 'Besar bunga (%)';
+    $('#fBungaVal').inputMode = t === 'nominal' ? 'numeric' : 'decimal';
+    const b = bunga(f);
+    const dph = dendaPerHari(f);
+    $('#calcBox').innerHTML = `
+      <div class="r"><span>Pokok</span><span class="num">${rp(f.pokok)}</span></div>
+      <div class="r"><span>Bunga</span><span class="num">${rp(b)}</span></div>
+      <div class="formula">${esc(bungaFormula(f))}</div>
+      <div class="r tot"><span>Total dikembalikan</span><span class="num">${rp(f.pokok + b)}</span></div>
+      <div class="note">${f.jatuhTempo ? `Jatuh tempo ${tglID(f.jatuhTempo)}${f.hari ? ` (${f.hari} hari)` : ''}` : 'Isi jangka waktu untuk melihat jatuh tempo'}${dph ? ` · denda ${rp(dph)}/hari jika telat` : ''}</div>`;
+  }
+  // keep hari <-> jatuh tempo in sync
+  $('#fHari').addEventListener('input', () => { const h = parseInt($('#fHari').value, 10); if ($('#fTgl').value && h > 0) $('#fJT').value = addDays($('#fTgl').value, h); updateCalc(); });
+  $('#fJT').addEventListener('input', () => { if ($('#fTgl').value && $('#fJT').value) { const h = daysBetween($('#fTgl').value, $('#fJT').value); $('#fHari').value = h > 0 ? h : ''; } updateCalc(); });
+  $('#fTgl').addEventListener('input', () => { const h = parseInt($('#fHari').value, 10); if (h > 0 && $('#fTgl').value) $('#fJT').value = addDays($('#fTgl').value, h); updateCalc(); });
+  const moneyInput = el => el.addEventListener('input', () => { const n = digits(el.value); el.value = n ? fmt.format(n) : ''; updateCalc(); });
+  moneyInput($('#fPokok'));
+  $('#fBungaVal').addEventListener('input', () => { if ($('#fBungaTipe').value === 'nominal') { const n = digits($('#fBungaVal').value); $('#fBungaVal').value = n ? fmt.format(n) : ''; } updateCalc(); });
+  $('#fDenda').addEventListener('input', () => { if ($('#fDendaTipe').value === 'nominal') { const n = digits($('#fDenda').value); $('#fDenda').value = n ? fmt.format(n) : ''; } updateCalc(); });
+  ['#fBungaTipe', '#fDendaTipe'].forEach(s => $(s).addEventListener('change', () => { if (s === '#fBungaTipe') $('#fBungaVal').value = ''; else $('#fDenda').value = ''; updateCalc(); }));
+  // ---------- scan bukti transfer ----------
+  // On-device OCR (Tesseract.js). sampleNs/sampleImages stay as the "scan available" flags the UI checks.
+  let sampleNs = null, sampleImages = false, scanSeq = 0;
+  const titleCase = s => String(s || '').toLowerCase().replace(/(^|[\s.'-])\p{L}/gu, m => m.toUpperCase()).trim();
+
+  const TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  let ocrWorker = null, ocrLoading = null, ocrProgress = null;
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      if (document.querySelector(`script[src="${src}"]`) && loadScript.done && loadScript.done[src]) return res();
+      const el = document.createElement('script');
+      el.src = src; el.async = true;
+      el.onload = () => { (loadScript.done = loadScript.done || {})[src] = true; res(); };
+      el.onerror = () => { el.remove(); rej(new Error('load ' + src)); };
+      document.head.appendChild(el);
+    });
+  }
+  function getOcr() {
+    if (ocrWorker) return Promise.resolve(ocrWorker);
+    if (!ocrLoading) ocrLoading = (async () => {
+      if (!window.Tesseract) await loadScript(TESS_URL);
+      ocrWorker = await Tesseract.createWorker(['ind', 'eng'], 1, { logger: m => ocrProgress && ocrProgress(m) });
+      return ocrWorker;
+    })().catch(e => { ocrLoading = null; throw { code: navigator.onLine ? 'ocr_load' : 'offline' }; });
+    return ocrLoading;
+  }
+  async function prepForOcr(file) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const longest = Math.max(bmp.width, bmp.height);
+      const s = longest < 1400 ? Math.min(2.5, 1400 / longest) : Math.min(1, 2400 / longest);
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+      const g = c.getContext('2d');
+      g.filter = 'grayscale(1) contrast(1.15)';
+      g.drawImage(bmp, 0, 0, c.width, c.height);
+      return c;
+    } catch (e) { return file; }
+  }
+  async function readReceipt(file, onStatus) {
+    ocrProgress = m => {
+      if (!onStatus || !m) return;
+      if (m.status === 'recognizing text') onStatus(`Membaca teks… ${Math.round((m.progress || 0) * 100)}%`);
+      else onStatus(ocrWorker ? 'Menyiapkan…' : 'Menyiapkan pembaca teks (pertama kali agak lama)…');
+    };
+    if (onStatus) onStatus(ocrWorker ? 'Membaca teks…' : 'Menyiapkan pembaca teks (pertama kali agak lama)…');
+    const w = await getOcr();
+    const src = await prepForOcr(file);
+    const { data } = await w.recognize(src);
+    return parseReceipt((data && data.text) || '');
+  }
+
+  // PARSER-START
+  const BANKS = [
+    ['BCA', 'i'], ['Mandiri', 'i'], ['BRI', ''], ['BRImo', 'i'], ['BNI', ''], ['BSI', ''], ['BTN', ''], ['CIMB Niaga', 'i'], ['CIMB', 'i'],
+    ['Permata', 'i'], ['Danamon', 'i'], ['OCBC', 'i'], ['Panin', 'i'], ['Maybank', 'i'], ['Bank Mega', 'i'], ['Sinarmas', 'i'],
+    ['Jago', ''], ['SeaBank', 'i'], ['blu', ''], ['Jenius', 'i'], ['BTPN', 'i'], ['Allo', ''], ['Neo', ''], ['Superbank', 'i'],
+    ['Bank DKI', 'i'], ['BJB', 'i'], ['Bank Jatim', 'i'], ['Bank Jateng', 'i'], ['Muamalat', 'i'],
+    ['GoPay', 'i'], ['OVO', ''], ['DANA', ''], ['ShopeePay', 'i'], ['LinkAja', 'i'], ['Flip', '']
+  ].map(([n, f]) => [n, new RegExp(`(^|[^A-Za-z])${n.replace(/ /g, '\\s')}(?![A-Za-z])`, f)]);
+  const findBanks = s => BANKS.filter(([, re]) => re.test(s)).map(([n]) => n === 'BRImo' ? 'BRI' : n);
+  const MONTH_MAP = { jan: 1, januari: 1, january: 1, feb: 2, februari: 2, february: 2, peb: 2, mar: 3, maret: 3, march: 3, apr: 4, april: 4, mei: 5, may: 5, jun: 6, juni: 6, june: 6, jul: 7, juli: 7, july: 7, agu: 8, agt: 8, ags: 8, agustus: 8, aug: 8, august: 8, sep: 9, sept: 9, september: 9, okt: 10, oktober: 10, oct: 10, october: 10, nov: 11, nopember: 11, november: 11, des: 12, desember: 12, dec: 12, december: 12 };
+  const MONTH_RE = Object.keys(MONTH_MAP).sort((a, b) => b.length - a.length).join('|');
+  const two = n => String(n).padStart(2, '0');
+
+  function parseAmount(s) {
+    let t = String(s).replace(/\s/g, '');
+    t = t.replace(/[.,]\d{2}$/, '');          // sen
+    const n = Number(t.replace(/[.,]/g, ''));
+    return isFinite(n) ? n : 0;
+  }
+
+  function parseReceipt(text) {
+    const raw = String(text || '').replace(/[|]/g, ' ');
+    const lines = raw.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const low = lines.map(l => l.toLowerCase());
+    const out = { is_bukti_transfer: true, nominal: null, biaya_admin: null, tanggal: null, waktu: null, nama_pengirim: null, bank_pengirim: null,
+      nama_penerima: null, bank_penerima: null, rekening_penerima: null, no_referensi: null, berita: null, status: null };
+
+    // ---- amounts
+    const amounts = [];
+    lines.forEach((l, i) => {
+      const re = /(?:rp\.?|idr)\s*:?\s*([0-9][0-9.,]*[0-9]|[0-9])/gi; let m;
+      while ((m = re.exec(l))) amounts.push({ i, n: parseAmount(m[1]), line: low[i] });
+    });
+    const KW = /(nominal|jumlah|amount|total)/;
+    lines.forEach((l, i) => {
+      if (!KW.test(low[i]) || /(?:rp\.?|idr)\s*:?\s*\d/i.test(l)) return;
+      const grp = /([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{2})?)/;
+      const m = grp.exec(l) || (lines[i + 1] && new RegExp('^(?:rp\\.?|idr)?\\s*' + grp.source + '$', 'i').exec(lines[i + 1]));
+      if (m) amounts.push({ i, n: parseAmount(m[1]), line: low[i] });
+    });
+    const isFee = a => /(admin|biaya|fee|charge)/.test(a.line) || (a.i > 0 && /(admin|biaya|fee)/.test(low[a.i - 1]) && !/(nominal|jumlah|amount)/.test(a.line));
+    const fee = amounts.find(isFee);
+    if (fee && fee.n) out.biaya_admin = fee.n;
+    const main = amounts.filter(a => !isFee(a) && a.n >= 1000);
+    let pick = main.find(a => /(nominal|jumlah|amount)/.test(a.line))
+      || main.find(a => a.i > 0 && /(nominal|jumlah|amount)/.test(low[a.i - 1]));
+    if (!pick && main.length) {
+      const sorted = [...main].sort((a, b) => b.n - a.n);
+      pick = sorted[0];
+      if (out.biaya_admin && /total/.test(pick.line)) pick = sorted.find(a => a.n === pick.n - out.biaya_admin) || pick;
+    }
+    if (pick) out.nominal = pick.n;
+
+    // ---- date
+    const reIso = /\b(\d{4})-(\d{2})-(\d{2})\b/;
+    const reText = new RegExp(`\\b(\\d{1,2})\\s*[-/ ]?\\s*(${MONTH_RE})\\.?\\s*[-/ ,]?\\s*(\\d{4}|\\d{2})\\b`, 'i');
+    const reNum = /\b(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4}|\d{2})\b/;
+    for (const l of lines) {
+      let m, y, mo, d;
+      if ((m = reIso.exec(l))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+      else if ((m = reText.exec(l))) { d = +m[1]; mo = MONTH_MAP[m[2].toLowerCase()]; y = +m[3]; }
+      else if ((m = reNum.exec(l))) { d = +m[1]; mo = +m[2]; y = +m[3]; }
+      if (!m) continue;
+      if (y < 100) y += 2000;
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 2000 && y <= 2100) { out.tanggal = `${y}-${two(mo)}-${two(d)}`; break; }
+    }
+    const tm = /\b([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?\s*(?:wib|wita|wit)?\b/i;
+    const tLine = lines.find(l => /(\d:\d\d|wib|wita|wit|jam|waktu|time)/i.test(l) && tm.test(l));
+    if (tLine) { const m = tm.exec(tLine); out.waktu = `${two(+m[1])}:${m[2]}`; }
+
+    // ---- label/value helpers
+    const LABELS = /\b(rekening|account|bank|tujuan|penerima|pengirim|sumber|transfer|berhasil|sukses|nominal|jumlah|biaya|tanggal|waktu|referensi|catatan|berita|keterangan|total|status|metode|layanan|detail|bukti|transaksi|receipt|successful|kepada|dari)\b/i;
+    const nameLike = v => !!v && /^[A-Za-z][A-Za-z .,'-]{2,50}$/.test(v) && !LABELS.test(v) && !findBanks(v).length && v.replace(/[^A-Za-z]/g, '').length >= 3;
+    function valueAfter(re) {
+      for (let i = 0; i < lines.length; i++) {
+        const m = re.exec(lines[i]); if (!m) continue;
+        const rest = lines[i].slice(m.index + m[0].length).replace(/^\s*[:\-–=]\s*/, '').trim();
+        if (rest) return rest;
+        if (lines[i + 1]) return lines[i + 1];
+      }
+      return null;
+    }
+    function findParty(labelRe) {
+      for (let i = 0; i < lines.length; i++) {
+        const m = labelRe.exec(lines[i]); if (!m) continue;
+        const rest = lines[i].slice(m.index + m[0].length).replace(/^\s*[:\-–=]\s*/, '').trim();
+        let name = null, bank = null, acct = null;
+        for (const c of [rest, lines[i + 1], lines[i + 2], lines[i + 3]]) {
+          if (!c) continue;
+          if (c !== rest && labelRe.test(c)) break;
+          const an = /(?:\ba\s?[.\/]\s?n\b\.?|\ban\.\s|atas nama)\s*[:.]?\s*(.+)$/i.exec(c);
+          const parts = (an ? an[1] : c).split(/\s+[-–]\s+/);
+          for (const part of parts) { const v = part.trim(); if (!name && nameLike(v)) name = v; }
+          if (!bank) { const b = findBanks(c); if (b.length) bank = b[0]; }
+          if (!acct) { const a = /([0-9*][0-9*xX•\s-]{6,}[0-9])/.exec(c); if (a && /\d{3,}/.test(a[1]) && !/[.,]\d{3}/.test(a[1])) acct = a[1].replace(/\s+/g, ''); }
+        }
+        if (name || bank || acct) return { name, bank, acct };
+      }
+      return null;
+    }
+    const rec = findParty(/(?:\b(?:nama penerima|penerima|rekening tujuan|tujuan|kepada|transfer ke|recipient|beneficiary|to)\b|^ke\b)/i);
+    const snd = findParty(/\b(nama pengirim|pengirim|rekening sumber|sumber dana|dari|from|sender)\b/i);
+    if (rec) { out.nama_penerima = rec.name; out.bank_penerima = rec.bank; out.rekening_penerima = rec.acct; }
+    if (snd) { out.nama_pengirim = snd.name; out.bank_pengirim = snd.bank; }
+    if (!out.nama_penerima) {
+      const an = lines.map(l => /(?:\ba\s?[.\/]\s?n\b\.?|\ban\.\s|atas nama)\s*[:.]?\s*([A-Za-z][A-Za-z .'-]{2,})$/i.exec(l)).find(Boolean);
+      if (an && nameLike(an[1].trim())) out.nama_penerima = an[1].trim();
+    }
+    if (!out.nama_penerima) {
+      const caps = lines.find(l => nameLike(l) && l === l.toUpperCase() && l.includes(' ') && l !== out.nama_pengirim);
+      if (caps) out.nama_penerima = caps;
+    }
+    if (!out.bank_penerima || !out.bank_pengirim) {
+      const seen = []; lines.forEach(l => findBanks(l).forEach(b => { if (!seen.includes(b)) seen.push(b); }));
+      if (!out.bank_pengirim && seen.length >= 2) out.bank_pengirim = seen[0];
+      if (!out.bank_penerima && seen.length >= 2) out.bank_penerima = seen.find(b => b !== out.bank_pengirim) || null;
+    }
+
+    // ---- reference, note, status
+    const ref = valueAfter(/(?:\b(?:no\.?\s*ref(?:erensi)?|nomor referensi|reference(?:\s*(?:no|number))?|ref\.?\s*no|id transaksi|transaction id|no\.?\s*transaksi|kode transaksi)\b|^ref\b\.?)/i);
+    if (ref) { const t = /([A-Z0-9][A-Z0-9-]{5,})/i.exec(ref); if (t && /\d/.test(t[1])) out.no_referensi = t[1]; }
+    const ber = valueAfter(/\b(berita|keterangan|catatan|remark|description|deskripsi|pesan)\b/i);
+    if (ber && !LABELS.test(ber.split(' ')[0]) && !/^(?:rp|idr)/i.test(ber) && ber.length <= 80) out.berita = ber;
+    if (/(berhasil|sukses|successful|success|completed|selesai)/i.test(raw)) out.status = 'Berhasil';
+    out.is_bukti_transfer = !!(out.nominal || /(transfer|berhasil|sukses|rekening|bukti|transaksi)/i.test(raw));
+    return out;
+  }
+  // PARSER-END
+  const scanErrorText = e => ({
+    images_unavailable: 'Membaca foto tidak tersedia di tampilan ini. Isi form secara manual; foto tetap dilampirkan sebagai bukti.',
+    not_granted: 'Izin agar halaman ini bisa membaca foto belum diberikan. Foto tetap dilampirkan; isi form secara manual.',
+    rate_limited: 'Terlalu banyak permintaan. Tunggu sebentar lalu pilih fotonya lagi.',
+    image_rejected: 'Format gambar tidak didukung. Coba screenshot JPG atau PNG.',
+    invalid_json: 'Bukti terbaca tapi hasilnya tidak jelas. Periksa dan isi form secara manual.',
+    offline: 'Pertama kali memakai scan butuh internet untuk mengunduh pembaca teks. Foto tetap dilampirkan; isi form secara manual.',
+    ocr_load: 'Pembaca teks gagal dimuat. Periksa internet lalu coba lagi; foto tetap dilampirkan.',
+    cancelled: 'Pembacaan dibatalkan.'
+  })[e && e.code] || 'Bukti belum bisa dibaca. Isi form secara manual; foto tetap dilampirkan.';
+
+  function markFilled(el) { el.classList.add('filled'); el.addEventListener('input', () => el.classList.remove('filled'), { once: true }); }
+
+  async function handleScan(file) {
+    if (!file) return;
+    const seq = ++scanSeq;
+    const st = $('#scanStatus'), found = $('#scanFound');
+    loanFile = file;
+    const url = URL.createObjectURL(file);
+    $('#scanShot').innerHTML = `<img src="${url}" alt="Bukti transfer yang dipindai">`;
+    $('#loanProofPrev').innerHTML = `<img class="thumb" src="${url}" alt="Pratinjau bukti">`;
+    found.hidden = true; st.className = 'status'; st.hidden = false;
+    if (!sampleNs || !sampleImages) { st.className = 'status bad'; st.textContent = scanErrorText({ code: 'images_unavailable' }); return; }
+    st.innerHTML = '<span class="spin" aria-hidden="true"></span>Membaca bukti transfer…';
+    try {
+      const r = await readReceipt(file, msg => { if (seq === scanSeq) st.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(msg); });
+      if (seq !== scanSeq) return;
+      if (r.is_bukti_transfer === false) { st.className = 'status bad'; st.textContent = 'Gambar ini sepertinya bukan bukti transfer. Pilih foto lain atau isi manual.'; return; }
+      const filled = [];
+      if (r.nama_penerima) { $('#fNama').value = titleCase(r.nama_penerima); markFilled($('#fNama')); filled.push('nama'); }
+      if (r.nominal) { $('#fPokok').value = fmt.format(r.nominal); markFilled($('#fPokok')); filled.push('nominal'); }
+      if (r.tanggal) {
+        $('#fTgl').value = r.tanggal; markFilled($('#fTgl')); filled.push('tanggal');
+        const h = parseInt($('#fHari').value, 10); if (h > 0) $('#fJT').value = addDays(r.tanggal, h);
+      }
+      const info = [
+        r.bank_pengirim && r.bank_penerima ? `${r.bank_pengirim} → ${r.bank_penerima}` : (r.bank_penerima ? `ke ${r.bank_penerima}` : ''),
+        r.rekening_penerima ? `rek. ${r.rekening_penerima}` : '',
+        r.waktu ? `jam ${r.waktu}` : '',
+        r.no_referensi ? `ref. ${r.no_referensi}` : '',
+        r.berita ? `berita: ${r.berita}` : '',
+        r.biaya_admin ? `admin ${rp(r.biaya_admin)}` : ''
+      ].filter(Boolean).join(' · ');
+      if (info) {
+        const c = $('#fCatatan'); c.value = c.value.trim() ? c.value.trim() + '\n' + info : info; markFilled(c); filled.push('info transfer');
+      }
+      updateCalc();
+      if (!filled.length) { st.className = 'status bad'; st.textContent = 'Tidak ada data yang terbaca jelas. Isi form secara manual; foto tetap dilampirkan.'; return; }
+      st.className = 'status ok';
+      st.textContent = `Terisi otomatis: ${filled.join(', ')}. Kolom bergaris kuning berasal dari scan, periksa sebelum menyimpan. Lalu atur bunga dan jangka waktu.`;
+      found.innerHTML = [r.nominal && rp(r.nominal), r.tanggal && tglID(r.tanggal), r.nama_penerima && titleCase(r.nama_penerima), r.bank_penerima, r.status].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
+      found.hidden = false;
+    } catch (e) {
+      if (seq !== scanSeq) return;
+      st.className = 'status bad'; st.textContent = scanErrorText(e);
+    }
+  }
+  ['#scanCam', '#scanPick'].forEach(s => $(s).addEventListener('change', e => { handleScan(e.target.files[0]); e.target.value = ''; }));
+
+  function proofHTML(p) {
+    if (!p) return '';
+    const u = blobUrl(p.id);
+    if (!u) return `<span class="pdfthumb" title="Foto bukti belum ada di perangkat ini">${Drive.connected() ? 'sinkron…' : 'tidak ada'}</span>`;
+    if ((p.contentType || '').includes('pdf')) return `<a class="pdfthumb" href="${u}" target="_blank" rel="noopener">PDF</a>`;
+    return `<img class="thumb" src="${u}" alt="Bukti transfer" data-view="${u}">`;
+  }
+  $('#fBukti').addEventListener('change', e => {
+    loanFile = e.target.files[0] || null;
+    if (loanFile && loanFile.type.startsWith('image/')) $('#loanProofPrev').innerHTML = `<img class="thumb" src="${URL.createObjectURL(loanFile)}" alt="Pratinjau bukti">`;
+    else if (loanFile) $('#loanProofPrev').innerHTML = `<span class="pdfthumb">PDF</span>`;
+    else $('#loanProofPrev').innerHTML = proofHTML(loanExistingProof);
+  });
+
+  function openLoanForm(id) {
+    editingId = id || null;
+    form.reset(); loanFile = null; loanExistingProof = null;
+    $('#loanErr').hidden = true;
+    scanSeq++;
+    $('#scanShot').innerHTML = 'FOTO<br>BUKTI';
+    $('#scanStatus').hidden = true; $('#scanFound').hidden = true;
+    $('#scanBox').hidden = !!id;
+    form.querySelectorAll('.filled').forEach(el => el.classList.remove('filled'));
+    $('#loanTitle').textContent = id ? 'Ubah pinjaman' : 'Catat pinjaman';
+    $('#loanSave').textContent = id ? 'Simpan perubahan' : 'Simpan pinjaman';
+    if (id) {
+      const l = loans.find(x => x.id === id);
+      $('#fNama').value = l.nama; $('#fPokok').value = fmt.format(l.pokok); $('#fTgl').value = l.tglPinjam;
+      $('#fBungaTipe').value = l.bungaTipe;
+      $('#fBungaVal').value = l.bungaTipe === 'none' ? '' : (l.bungaTipe === 'nominal' ? fmt.format(l.bungaVal) : String(l.bungaVal).replace('.', ','));
+      $('#fHari').value = l.hari; $('#fJT').value = l.jatuhTempo;
+      $('#fDendaTipe').value = l.dendaTipe || 'persen';
+      $('#fDenda').value = l.denda ? (l.dendaTipe === 'nominal' ? fmt.format(l.denda) : String(l.denda).replace('.', ',')) : '';
+      $('#fCatatan').value = l.catatan || '';
+      loanExistingProof = l.buktiPinjam || null;
+    } else {
+      $('#fTgl').value = todayStr(); $('#fHari').value = 30; $('#fJT').value = addDays(todayStr(), 30);
+    }
+    $('#loanProofPrev').innerHTML = proofHTML(loanExistingProof);
+    updateCalc();
+    $('#dlgDetail').open && $('#dlgDetail').close();
+    $('#dlgLoan').showModal();
+    $('#fNama').focus();
+  }
+
+  async function uploadProof(file) {
+    if (!file) return null;
+    const r = await assets.upload(file);
+    return { id: r.id, contentType: r.contentType, nama: file.name || '' };
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = readForm(), err = $('#loanErr');
+    const problems = [];
+    if (!f.nama) problems.push('isi nama');
+    if (!f.pokok) problems.push('isi nominal pokok');
+    if (!f.tglPinjam) problems.push('isi tanggal pinjam');
+    if (!f.hari || f.hari < 1 || !f.jatuhTempo) problems.push('isi jumlah hari atau tanggal jatuh tempo (setelah tanggal pinjam)');
+    if (f.bungaTipe !== 'none' && !f.bungaVal) problems.push('isi besar bunga, atau pilih "Tanpa bunga"');
+    if (problems.length) { err.textContent = 'Belum bisa disimpan: ' + problems.join(', ') + '.'; err.hidden = false; return; }
+    if (!col) { err.textContent = 'Penyimpanan belum siap. Pastikan Anda sudah login, lalu coba lagi.'; err.hidden = false; return; }
+    const btn = $('#loanSave'); btn.disabled = true; btn.textContent = 'Menyimpan…';
+    try {
+      let bukti = loanExistingProof;
+      if (loanFile) bukti = await uploadProof(loanFile);
+      const data = { ...f, buktiPinjam: bukti || null, updatedAt: new Date().toISOString() };
+      if (editingId) {
+        await col.doc(editingId).update(data);
+        if (loanFile && loanExistingProof && assets) assets.delete(loanExistingProof.id).catch(() => {});
+        toast('Perubahan tersimpan');
+        const id = editingId; $('#dlgLoan').close(); openDetail(id);
+      } else {
+        const ref = await col.add({ ...data, pembayaran: [], createdAt: new Date().toISOString() });
+        $('#dlgLoan').close(); toast('Pinjaman tersimpan');
+        detailId = ref.id;
+      }
+    } catch (ex) {
+      err.textContent = 'Gagal menyimpan: ' + (ex && ex.message ? ex.message : 'coba lagi.'); err.hidden = false;
+    } finally { btn.disabled = false; btn.textContent = editingId ? 'Simpan perubahan' : 'Simpan pinjaman'; }
+  });
+
+  // ---------- detail ----------
+  function openDetail(id) {
+    detailId = id; pendingDelete = null;
+    renderDetail();
+    if (!$('#dlgDetail').open) $('#dlgDetail').showModal();
+  }
+  function renderDetail() {
+    const l = loans.find(x => x.id === detailId);
+    const body = $('#dBody');
+    if (!l) { if ($('#dlgDetail').open) $('#dlgDetail').close(); return; }
+    const a = analyze(l);
+    const keep = body.querySelector('#payForm') ? {
+      tgl: body.querySelector('#pTgl').value, nom: body.querySelector('#pNom').value, cat: body.querySelector('#pCat').value
+    } : null;
+    $('#dTitle').textContent = l.nama;
+    const pays = [...(l.pembayaran || [])].sort((x, y) => x.tanggal.localeCompare(y.tanggal));
+    body.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        ${statusPill(a)}<span class="note">Dipinjamkan ${tglID(l.tglPinjam)}</span>
+      </div>
+      <div class="calc">
+        <div class="r"><span>Pokok</span><span class="num">${rp(l.pokok)}</span></div>
+        <div class="r"><span>Bunga</span><span class="num">${rp(a.bunga)}</span></div>
+        <div class="formula">${esc(bungaFormula(l))}</div>
+        ${a.denda ? `<div class="r"><span>Denda telat ${a.telat} hari</span><span class="num">${rp(a.denda)}</span></div>` : ''}
+        <div class="r tot"><span>Total tagihan</span><span class="num">${rp(a.total)}</span></div>
+        <div class="r"><span>Sudah dibayar</span><span class="num">${rp(a.bayar)}</span></div>
+        <div class="r tot"><span>Sisa</span><span class="num" style="color:${a.sisa ? 'var(--bad)' : 'var(--ok)'}">${rp(a.sisa)}</span></div>
+      </div>
+      <dl class="facts">
+        <div><dt>Tanggal pinjam</dt><dd>${tglID(l.tglPinjam)}</dd></div>
+        <div><dt>Jatuh tempo</dt><dd>${tglID(l.jatuhTempo)} · ${l.hari} hari</dd></div>
+        <div><dt>Bunga</dt><dd>${l.bungaTipe === 'none' ? 'Tanpa bunga' : l.bungaTipe === 'nominal' ? rp(l.bungaVal) + ' (tetap)' : String(l.bungaVal).replace('.', ',') + '% per ' + ({bulan:'bulan', tahun:'tahun', hari:'hari'})[l.bungaTipe] + ' (flat)'}</dd></div>
+        <div><dt>Denda telat</dt><dd>${l.denda ? (l.dendaTipe === 'nominal' ? rp(l.denda) : String(l.denda).replace('.', ',') + '% pokok') + ' per hari' : 'Tidak ada'}</dd></div>
+        ${l.catatan ? `<div style="grid-column:1/-1"><dt>Catatan</dt><dd>${esc(l.catatan)}</dd></div>` : ''}
+      </dl>
+      <div>
+        <div class="section-title">Bukti transfer pemberian pinjaman</div>
+        ${l.buktiPinjam ? `<div style="display:flex;gap:12px;align-items:center">${proofHTML(l.buktiPinjam)}<span class="note">${esc(l.buktiPinjam.nama || '')}</span></div>` : `<p class="note" style="margin:0">Belum ada bukti. Tambahkan lewat “Ubah”.</p>`}
+      </div>
+      <div>
+        <div class="section-title">Pembayaran pengembalian (${pays.length})</div>
+        <div>${pays.length ? pays.map(p => `
+          <div class="pay">
+            ${p.bukti ? proofHTML(p.bukti) : '<span class="noproof">tanpa bukti</span>'}
+            <div style="min-width:0"><b class="num">${rp(p.nominal)}</b><div class="note">${tglID(p.tanggal)}${p.catatan ? ' · ' + esc(p.catatan) : ''}</div></div>
+            <button class="btn small danger" type="button" data-delpay="${p.id}">Hapus</button>
+          </div>
+          ${pendingDelete === 'pay:' + p.id ? `<div class="confirm">Hapus pembayaran ${rp(p.nominal)} beserta buktinya? <button class="btn small danger" type="button" data-delpay-yes="${p.id}">Ya, hapus</button><button class="btn small" type="button" data-cancel>Batal</button></div>` : ''}
+        `).join('') : '<p class="note" style="margin:0">Belum ada pembayaran.</p>'}</div>
+      </div>
+      ${a.status !== 'lunas' ? `
+      <form id="payForm" novalidate>
+        <fieldset>
+          <legend>Catat pembayaran</legend>
+          <div class="grid">
+            <label class="f full"><span>Bukti transfer pembayaran</span><div class="drop"><div id="payProofPrev"></div><input id="pBukti" type="file" accept="image/*,application/pdf"></div><span class="hint">${sampleNs && sampleImages ? 'Pilih fotonya dulu: nominal dan tanggal akan terbaca otomatis.' : 'Foto/screenshot atau PDF.'}</span><span id="payScan" hidden></span></label>
+            <label class="f"><span>Tanggal bayar</span><input id="pTgl" type="date" value="${todayStr()}"></label>
+            <label class="f"><span>Nominal (Rp)</span><input id="pNom" inputmode="numeric" autocomplete="off" value="${fmt.format(Math.round(a.sisa))}"></label>
+            <label class="f full"><span>Catatan (opsional)</span><input id="pCat" autocomplete="off" placeholder="mis. cicilan 1, via BCA"></label>
+          </div>
+          <p class="err" id="payErr" hidden></p>
+          <div class="actions"><button class="btn primary" type="submit" id="paySave">Simpan pembayaran</button></div>
+        </fieldset>
+      </form>` : ''}
+      ${pendingDelete === 'loan' ? `<div class="confirm">Hapus catatan ${esc(l.nama)} beserta semua bukti transfernya? Ini tidak bisa dibatalkan. <button class="btn small danger" type="button" data-delloan-yes>Ya, hapus</button><button class="btn small" type="button" data-cancel>Batal</button></div>` : ''}
+      <div class="actions">
+        <button class="btn danger" type="button" data-delloan>Hapus</button>
+        ${a.status !== 'lunas' ? `<button class="btn" type="button" data-ics ${downloads ? '' : 'hidden'}>Simpan pengingat (.ics)</button>` : ''}
+        <button class="btn" type="button" data-edit="${l.id}">Ubah</button>
+      </div>
+      ${a.status !== 'lunas' && downloads ? `<p class="note" style="margin:0;text-align:right">File .ics berisi pengingat H-3, H-1, dan hari jatuh tempo. Buka file itu untuk menambahkannya ke Google Calendar atau kalender HP.</p>` : ''}`;
+    if (keep) { body.querySelector('#pTgl').value = keep.tgl; body.querySelector('#pNom').value = keep.nom; body.querySelector('#pCat').value = keep.cat; }
+    const pf = body.querySelector('#payForm');
+    if (pf) {
+      const nom = pf.querySelector('#pNom');
+      nom.addEventListener('input', () => { const n = digits(nom.value); nom.value = n ? fmt.format(n) : ''; });
+      pf.querySelector('#pBukti').addEventListener('change', async e => {
+        const f = e.target.files[0];
+        pf.querySelector('#payProofPrev').innerHTML = f ? (f.type.startsWith('image/') ? `<img class="thumb" src="${URL.createObjectURL(f)}" alt="Pratinjau bukti">` : '<span class="pdfthumb">PDF</span>') : '';
+        const st = pf.querySelector('#payScan');
+        if (!f || !f.type.startsWith('image/') || !sampleNs || !sampleImages) { st.hidden = true; return; }
+        const seq = ++scanSeq;
+        st.hidden = false; st.className = 'note'; st.innerHTML = '<span class="spin" aria-hidden="true"></span>Membaca nominal dan tanggal…';
+        try {
+          const r = await readReceipt(f, msg => { if (seq === scanSeq && st.isConnected) st.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(msg); });
+          if (seq !== scanSeq || !pf.isConnected) return;
+          const got = [];
+          if (r.nominal) { nom.value = fmt.format(r.nominal); markFilled(nom); got.push(rp(r.nominal)); }
+          if (r.tanggal) { const t = pf.querySelector('#pTgl'); t.value = r.tanggal; markFilled(t); got.push(tglID(r.tanggal)); }
+          const extra = [r.nama_pengirim && `dari ${titleCase(r.nama_pengirim)}`, r.bank_pengirim && `via ${r.bank_pengirim}`, r.no_referensi && `ref. ${r.no_referensi}`].filter(Boolean).join(', ');
+          if (extra) { const c = pf.querySelector('#pCat'); if (!c.value.trim()) { c.value = extra; markFilled(c); } }
+          st.className = got.length ? 'note' : 'err';
+          st.textContent = got.length ? `Terbaca dari bukti: ${got.join(' · ')}${extra ? ' · ' + extra : ''}. Periksa sebelum menyimpan.` : 'Nominal dan tanggal tidak terbaca. Isi secara manual.';
+        } catch (ex) {
+          if (seq !== scanSeq || !pf.isConnected) return;
+          st.className = 'err'; st.textContent = scanErrorText(ex);
+        }
+      });
+      pf.addEventListener('submit', async e => {
+        e.preventDefault();
+        const err = pf.querySelector('#payErr');
+        const tgl = pf.querySelector('#pTgl').value, n = digits(nom.value);
+        if (!tgl || !n) { err.textContent = 'Isi tanggal dan nominal pembayaran.'; err.hidden = false; return; }
+        const btn = pf.querySelector('#paySave'); btn.disabled = true; btn.textContent = 'Menyimpan…';
+        try {
+          const bukti = await uploadProof(pf.querySelector('#pBukti').files[0]);
+          const p = { id: Math.random().toString(36).slice(2, 10), tanggal: tgl, nominal: n, catatan: pf.querySelector('#pCat').value.trim(), bukti: bukti || null };
+          const cur = loans.find(x => x.id === detailId);
+          pf.reset();
+          await col.doc(detailId).update({ pembayaran: [...(cur.pembayaran || []), p], updatedAt: new Date().toISOString() });
+          toast('Pembayaran tersimpan');
+        } catch (ex) {
+          err.textContent = 'Gagal menyimpan: ' + (ex && ex.message ? ex.message : 'coba lagi.'); err.hidden = false;
+          btn.disabled = false; btn.textContent = 'Simpan pembayaran';
+        }
+      });
+    }
+  }
+
+  // ---------- .ics reminder ----------
+  function icsFor(l) {
+    const a = analyze(l);
+    const d = l.jatuhTempo.replace(/-/g, ''), d2 = addDays(l.jatuhTempo, 1).replace(/-/g, '');
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    const what = `Tagih ${l.nama}`;
+    const txt = s => s.replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+    const desc = txt(`Pinjaman ${rp(l.pokok)} sejak ${tglID(l.tglPinjam)}.\nTotal tagihan ${rp(a.total)}, sisa ${rp(a.sisa)}.\nJatuh tempo ${tglID(l.jatuhTempo)}.`);
+    const alarm = (trig, label) => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${txt(label)}`, `TRIGGER:${trig}`, 'END:VALARM'];
+    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Buku Hutang Piutang//ID', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+      `UID:${l.id}-${d}@buku-hutang`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d2}`,
+      `SUMMARY:${txt(`Jatuh tempo: ${what} (${rp(a.sisa)})`)}`, `DESCRIPTION:${desc}`,
+      ...alarm('-P2DT15H', `H-3: ${what}`), ...alarm('-PT15H', `H-1: ${what}`), ...alarm('PT9H', `Hari ini: ${what}`),
+      'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  }
+
+  // ---------- events ----------
+  document.addEventListener('click', async e => {
+    const t = e.target.closest('[data-open],[data-new],[data-close],[data-edit],[data-view],[data-delpay],[data-delpay-yes],[data-delloan],[data-delloan-yes],[data-cancel],[data-ics],.tabs button');
+    if (!t) return;
+    if (t.matches('.tabs button')) { filter = t.dataset.f; document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b === t)); render(); return; }
+    if (t.hasAttribute('data-open')) return openDetail(t.dataset.open);
+    if (t.hasAttribute('data-new')) return openLoanForm();
+    if (t.hasAttribute('data-close')) return t.closest('dialog').close();
+    if (t.hasAttribute('data-edit')) return openLoanForm(t.dataset.edit);
+    if (t.hasAttribute('data-view')) { e.preventDefault(); $('#vImg').src = t.dataset.view; return $('#viewer').showModal(); }
+    if (t.hasAttribute('data-cancel')) { pendingDelete = null; return renderDetail(); }
+    if (t.hasAttribute('data-delpay')) { pendingDelete = 'pay:' + t.dataset.delpay; return renderDetail(); }
+    if (t.hasAttribute('data-delloan')) { pendingDelete = 'loan'; return renderDetail(); }
+    const l = loans.find(x => x.id === detailId);
+    if (t.hasAttribute('data-delpay-yes') && l) {
+      const p = (l.pembayaran || []).find(x => x.id === t.dataset.delpayYes);
+      pendingDelete = null;
+      try {
+        await col.doc(l.id).update({ pembayaran: l.pembayaran.filter(x => x.id !== p.id), updatedAt: new Date().toISOString() });
+        if (p && p.bukti && assets) assets.delete(p.bukti.id).catch(() => {});
+        toast('Pembayaran dihapus');
+      } catch (ex) { toast('Gagal menghapus pembayaran'); }
+      return;
+    }
+    if (t.hasAttribute('data-delloan-yes') && l) {
+      try {
+        await col.doc(l.id).delete();
+        if (assets) [l.buktiPinjam, ...(l.pembayaran || []).map(p => p.bukti)].filter(Boolean).forEach(b => assets.delete(b.id).catch(() => {}));
+        $('#dlgDetail').close(); toast('Catatan dihapus');
+      } catch (ex) { toast('Gagal menghapus catatan'); }
+      return;
+    }
+    if (t.hasAttribute('data-ics') && l && downloads) {
+      const name = `jatuh-tempo-${l.nama.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'pinjaman'}.ics`;
+      try { await downloads.save({ filename: name, data: new Blob([icsFor(l)], { type: 'text/calendar' }) }); toast('File pengingat disimpan'); }
+      catch (ex) { if (ex && ex.code !== 'declined' && ex.code !== 'cancelled') toast('File pengingat tidak tersimpan'); }
+    }
+  });
+  document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.attention .row')) { e.preventDefault(); openDetail(e.target.dataset.open); } });
+  $('#btnNew').addEventListener('click', () => openLoanForm());
+  $('#q').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); render(); });
+  $('#dlgDetail').addEventListener('close', () => { pendingDelete = null; });
+  $('#viewer').addEventListener('click', e => { if (e.target === $('#viewer')) $('#viewer').close(); });
+
+  render();
+
+  // ---------- password lock ----------
+  // The book is already private to the account; this adds a password screen on top.
+  // Only a salted PBKDF2 hash of the password and of the recovery code is stored.
+  const enc = new TextEncoder();
+  const ITER = 150000;
+  const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const newSalt = () => b64(crypto.getRandomValues(new Uint8Array(16)));
+  async function derive(pw, saltB64, iter) {
+    const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+    return b64(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(saltB64), iterations: iter }, key, 256));
+  }
+  const normRec = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  function recoveryCode() {
+    const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint8Array(12));
+    let s = ''; r.forEach((v, i) => { s += a[v % 32]; if (i === 3 || i === 7) s += '-'; }); return s;
+  }
+  async function makeKunci(pw, code) {
+    const salt = newSalt(), recSalt = newSalt();
+    return { v: 1, iter: ITER, salt, hash: await derive(pw, salt, ITER), recSalt, recHash: await derive(normRec(code), recSalt, ITER), updatedAt: new Date().toISOString() };
+  }
+
+  let kunciRef = null, kunci = null, lockMode = 'loading', unlocked = false, fails = 0, lockoutUntil = 0;
+  const L = id => document.getElementById(id);
+
+  function setLockMode(mode, text) {
+    lockMode = mode;
+    L('lock').hidden = false; L('app').hidden = true;
+    const show = (id, on) => { L(id).hidden = !on; };
+    const form = mode === 'unlock' || mode === 'setup' || mode === 'reset' || mode === 'change';
+    show('lockForm', form); show('recShow', mode === 'recovery');
+    L('lockErr').hidden = true;
+    ['pw0', 'pw1', 'pw2', 'recIn'].forEach(i => { L(i).value = ''; });
+    L('showPw').checked = false; ['pw0', 'pw1', 'pw2'].forEach(i => L(i).type = 'password');
+    show('pw0Wrap', mode === 'change'); show('recWrap', mode === 'reset'); show('pw2Wrap', mode !== 'unlock');
+    L('pw1').autocomplete = mode === 'unlock' ? 'current-password' : 'new-password';
+    L('pw1Lbl').textContent = mode === 'unlock' ? 'Kata sandi' : 'Kata sandi baru';
+    const cfg = {
+      loading: ['Buku Hutang Piutang', '<span class="spin" aria-hidden="true"></span>Memuat…'],
+      unlock: ['Buku Hutang Piutang', 'Masukkan kata sandi untuk membuka buku.', 'Buka', 'Lupa kata sandi?'],
+      setup: ['Buat kata sandi', 'Buku ini akan meminta kata sandi setiap kali dibuka, dan terkunci lagi setelah 5 menit tidak dipakai. Minimal 4 karakter.', 'Buat kata sandi', 'Sudah punya data di Google Drive? Pulihkan'],
+      reset: ['Atur ulang kata sandi', 'Masukkan kode pemulihan yang Anda simpan saat membuat kata sandi, lalu buat kata sandi baru.', 'Atur ulang', 'Kembali'],
+      change: ['Ubah kata sandi', 'Masukkan kata sandi saat ini, lalu kata sandi baru.', 'Simpan kata sandi', 'Batal'],
+      recovery: ['Kode pemulihan', ''],
+      noaccess: ['Buku belum bisa dibuka', text || 'Buka halaman ini saat sudah login ke claude.ai dengan akun pemilik buku ini.'],
+      error: ['Terjadi kendala', text || 'Muat ulang halaman ini.']
+    }[mode];
+    L('lockTitle').textContent = cfg[0];
+    L('lockText').innerHTML = cfg[1]; L('lockText').hidden = !cfg[1];
+    if (form) {
+      L('lockBtn').textContent = cfg[2]; L('lockBtn').disabled = false;
+      L('lockAlt').textContent = cfg[3]; L('lockAlt').hidden = !cfg[3];
+      setTimeout(() => L(mode === 'change' ? 'pw0' : mode === 'reset' ? 'recIn' : 'pw1').focus(), 50);
+    }
+  }
+  function unlock() {
+    unlocked = true; fails = 0; lastAct = Date.now();
+    L('lock').hidden = true; L('app').hidden = false;
+    render();
+  }
+  function lockNow() {
+    if (!kunci) return;
+    unlocked = false;
+    document.querySelectorAll('dialog[open]').forEach(d => d.close());
+    setLockMode('unlock');
+  }
+  function showRecovery(code) {
+    setLockMode('recovery');
+    L('recCode').textContent = code; L('recOk').checked = false; L('recDone').disabled = true;
+  }
+  const lockErr = msg => { L('lockErr').textContent = msg; L('lockErr').hidden = false; };
+
+  L('showPw').addEventListener('change', e => ['pw0', 'pw1', 'pw2'].forEach(i => L(i).type = e.target.checked ? 'text' : 'password'));
+  L('recOk').addEventListener('change', e => { L('recDone').disabled = !e.target.checked; });
+  L('recDone').addEventListener('click', unlock);
+  L('recCopy').addEventListener('click', () => {
+    const code = L('recCode').textContent;
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(L('recCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Kode terpilih, salin secara manual'); };
+    try { navigator.clipboard.writeText(code).then(() => toast('Kode disalin'), fallback); } catch (e) { fallback(); }
+  });
+  L('lockAlt').addEventListener('click', () => {
+    if (lockMode === 'setup') { paintDrive(); $('#dlgDrive').showModal(); }
+    else if (lockMode === 'unlock') setLockMode('reset');
+    else if (lockMode === 'reset') setLockMode('unlock');
+    else if (lockMode === 'change') unlock();
+  });
+  L('btnLock').addEventListener('click', lockNow);
+  L('btnPw').addEventListener('click', () => { document.querySelectorAll('dialog[open]').forEach(d => d.close()); unlocked = false; setLockMode('change'); });
+
+  L('lockForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = L('lockBtn'), pw1 = L('pw1').value, pw2 = L('pw2').value;
+    L('lockErr').hidden = true;
+    if (lockMode !== 'unlock' && lockMode !== 'reset' && lockMode !== 'change' && lockMode !== 'setup') return;
+    if (lockMode !== 'unlock') {
+      if (pw1.length < 4) return lockErr('Kata sandi minimal 4 karakter.');
+      if (pw1 !== pw2) return lockErr('Kedua kata sandi baru tidak sama.');
+    }
+    if ((lockMode === 'unlock' || lockMode === 'change' || lockMode === 'reset') && Date.now() < lockoutUntil)
+      return lockErr(`Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil((lockoutUntil - Date.now()) / 1000)} detik.`);
+    const wrong = msg => { fails++; if (fails >= 5) { fails = 0; lockoutUntil = Date.now() + 30000; lockErr('Salah 5 kali. Coba lagi dalam 30 detik.'); } else lockErr(msg); };
+    const label = btn.textContent; btn.disabled = true; btn.textContent = 'Memeriksa…';
+    try {
+      if (lockMode === 'unlock') {
+        if (await derive(pw1, kunci.salt, kunci.iter) === kunci.hash) return unlock();
+        wrong('Kata sandi salah.');
+      } else if (lockMode === 'setup') {
+        const code = recoveryCode(), k = await makeKunci(pw1, code);
+        await kunciRef.set(k); kunci = k; showRecovery(code); return;
+      } else if (lockMode === 'reset') {
+        if (await derive(normRec(L('recIn').value), kunci.recSalt, kunci.iter) !== kunci.recHash) { wrong('Kode pemulihan salah.'); }
+        else { const code = recoveryCode(), k = await makeKunci(pw1, code); await kunciRef.set(k); kunci = k; fails = 0; showRecovery(code); return; }
+      } else if (lockMode === 'change') {
+        if (await derive(L('pw0').value, kunci.salt, kunci.iter) !== kunci.hash) { wrong('Kata sandi saat ini salah.'); }
+        else {
+          const salt = newSalt(), k = { ...kunci, salt, iter: ITER, hash: await derive(pw1, salt, ITER), updatedAt: new Date().toISOString() };
+          await kunciRef.set(k); kunci = k; unlock(); toast('Kata sandi diubah'); return;
+        }
+      }
+    } catch (ex) {
+      lockErr('Gagal menyimpan. Periksa koneksi lalu coba lagi.');
+    }
+    btn.disabled = false; btn.textContent = label;
+  });
+
+  // auto-lock after 5 minutes without activity
+  let lastAct = Date.now(), hiddenAt = 0;
+  ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); }, { passive: true, capture: true }));
+  setInterval(() => { if (unlocked && Date.now() - lastAct > 5 * 60000) lockNow(); }, 20000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else { if (unlocked && hiddenAt && Date.now() - hiddenAt > 5 * 60000) lockNow(); Drive.schedule(); }
+  });
+
+  // ---------- platform: local storage on this device (IndexedDB) ----------
+  // Isi dengan OAuth Client ID Anda (lihat PANDUAN-SETUP.md), atau masukkan lewat menu "Google Drive" di aplikasi.
+  const GOOGLE_CLIENT_ID = '';
+
+  let idbConn = null;
+  function idbOpen() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('buku-hutang-piutang', 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        if (!d.objectStoreNames.contains('loans')) d.createObjectStore('loans', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('blobs')) d.createObjectStore('blobs', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+      r.onblocked = () => rej(new Error('blocked'));
+    });
+  }
+  const tx = (store, mode, fn) => new Promise((res, rej) => {
+    const t = idbConn.transaction(store, mode), req = fn(t.objectStore(store));
+    let out; if (req) req.onsuccess = () => { out = req.result; };
+    t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+  const idb = {
+    get: (st, k) => tx(st, 'readonly', s => s.get(k)),
+    all: st => tx(st, 'readonly', s => s.getAll()),
+    keys: st => tx(st, 'readonly', s => s.getAllKeys()),
+    put: (st, v, k) => tx(st, 'readwrite', s => (k === undefined ? s.put(v) : s.put(v, k))),
+    del: (st, k) => tx(st, 'readwrite', s => s.delete(k))
+  };
+  const kv = { get: k => idb.get('kv', k), set: (k, v) => idb.put('kv', v, k), del: k => idb.del('kv', k) };
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 20) : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+  const nowIso = () => new Date().toISOString();
+
+  const blobUrls = new Map();
+  const blobUrl = id => (id && blobUrls.get(id)) || null;
+  async function loadBlobUrls() {
+    const all = await idb.all('blobs'), seen = new Set();
+    all.forEach(b => { seen.add(b.id); if (!blobUrls.has(b.id)) blobUrls.set(b.id, URL.createObjectURL(b.blob)); });
+    for (const [id, u] of blobUrls) if (!seen.has(id)) { URL.revokeObjectURL(u); blobUrls.delete(id); }
+  }
+  async function shrinkImage(file) {
+    if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif') return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      if (s === 1 && file.size < 700000) return file;
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const out = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+      return out && out.size < file.size ? out : file;
+    } catch (e) { return file; }
+  }
+
+  async function afterChange(sync = true) {
+    loans = await idb.all('loans');
+    await loadBlobUrls();
+    readyState = 'ready';
+    render();
+    if ($('#dlgDetail').open) renderDetail();
+    if (sync) Drive.schedule();
+  }
+  async function addTomb(id) { const d = (await kv.get('deleted')) || []; d.push({ id, at: nowIso() }); await kv.set('deleted', d); }
+
+  // Same shapes the UI code already calls.
+  col = {
+    add: async data => { const id = newId(); await idb.put('loans', { ...data, id, updatedAt: nowIso() }); await afterChange(); return { id }; },
+    doc: id => ({
+      update: async data => {
+        const cur = await idb.get('loans', id);
+        if (!cur) throw new Error('catatan tidak ditemukan');
+        await idb.put('loans', { ...cur, ...data, id, updatedAt: nowIso() });
+        await afterChange();
+      },
+      delete: async () => { await idb.del('loans', id); await addTomb(id); await afterChange(); }
+    })
+  };
+  assets = {
+    upload: async file => {
+      const blob = await shrinkImage(file), id = newId(), type = blob.type || file.type || 'application/octet-stream';
+      await idb.put('blobs', { id, blob, type, name: file.name || '', createdAt: Date.now() });
+      blobUrls.set(id, URL.createObjectURL(blob));
+      return { id, contentType: type };
+    },
+    delete: async id => { await idb.del('blobs', id); const u = blobUrls.get(id); if (u) { URL.revokeObjectURL(u); blobUrls.delete(id); } }
+  };
+  downloads = {
+    save: async ({ filename, data }) => {
+      const u = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
+      const a = document.createElement('a'); a.href = u; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 60000);
+    }
+  };
+  kunciRef = {
+    get: async () => { const k = await kv.get('kunci'); return { exists: !!k, data: () => k }; },
+    set: async k => { await kv.set('kunci', k); Drive.schedule(); }
+  };
+  function onKunciFromDrive(k) {
+    kunci = k;
+    if (!unlocked && lockMode === 'setup') { $('#dlgDrive').open && $('#dlgDrive').close(); setLockMode('unlock'); toast('Data dipulihkan. Masukkan kata sandi buku Anda.'); }
+  }
+
+  // MERGE-START
+  // Combine this device's book with the copy on Drive: newest edit of each loan wins, deletions are kept as tombstones.
+  function mergeBooks(local, remote) {
+    const del = new Map();
+    [...(remote.deleted || []), ...(local.deleted || [])].forEach(d => { if (d && d.id && (!del.has(d.id) || del.get(d.id) < d.at)) del.set(d.id, d.at); });
+    const map = new Map();
+    (remote.loans || []).forEach(l => { if (l && l.id) map.set(l.id, l); });
+    (local.loans || []).forEach(l => { if (!l || !l.id) return; const cur = map.get(l.id); if (!cur || (l.updatedAt || '') >= (cur.updatedAt || '')) map.set(l.id, l); });
+    for (const [id, at] of del) { const l = map.get(id); if (l && (l.updatedAt || '') <= at) map.delete(id); }
+    const lk = local.kunci || null, rk = remote.kunci || null;
+    const kunciOut = !lk ? rk : !rk ? lk : ((rk.updatedAt || '') > (lk.updatedAt || '') ? rk : lk);
+    const cutoff = new Date(Date.now() - 365 * 86400000).toISOString();
+    return { loans: [...map.values()], deleted: [...del].filter(([, at]) => at > cutoff).map(([id, at]) => ({ id, at })), kunci: kunciOut };
+  }
+  // MERGE-END
+
+  // ---------- Google Drive sync ----------
+  const Drive = (() => {
+    const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+    const FOLDER = 'Buku Hutang Piutang', DATA = 'buku-hutang-piutang.json';
+    const API = 'https://www.googleapis.com/drive/v3', UP = 'https://www.googleapis.com/upload/drive/v3';
+    let clientId = GOOGLE_CLIENT_ID, tokenClient = null, token = null, tokenExp = 0, state = { connected: false };
+    let timer = null, running = false, again = false, status = 'loading', msg = '';
+
+    const set = (s, m) => { status = s; msg = m || ''; paintDrive(); };
+    const tokenOk = () => !!token && Date.now() < tokenExp - 60000;
+    const loadGis = () => loadScript('https://accounts.google.com/gsi/client');
+
+    function makeClient() {
+      if (!clientId || !window.google || !google.accounts || !google.accounts.oauth2) return;
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId, scope: SCOPE,
+        callback: async r => {
+          if (r && r.access_token) {
+            token = r.access_token; tokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
+            await kv.set('gToken', { token, exp: tokenExp });
+            state.connected = true; await kv.set('drive', state);
+            sync();
+          } else set(state.connected ? 'needauth' : 'off', 'Izin Google Drive tidak diberikan.');
+        },
+        error_callback: e => set(state.connected ? 'needauth' : 'off', e && e.type === 'popup_closed'
+          ? 'Jendela login Google ditutup sebelum selesai.'
+          : 'Jendela login Google tidak terbuka. Jika membuka dari Layar Utama, coba sekali lewat Safari biasa.')
+      });
+    }
+    async function init() {
+      clientId = (await kv.get('gClientId')) || GOOGLE_CLIENT_ID;
+      state = (await kv.get('drive')) || { connected: false };
+      const t = await kv.get('gToken');
+      if (t && t.exp > Date.now() + 60000) { token = t.token; tokenExp = t.exp; }
+      if (clientId) loadGis().then(makeClient).catch(() => {});
+      set(!clientId ? 'nocfg' : !state.connected ? 'off' : tokenOk() ? 'idle' : 'needauth');
+      if (state.connected && tokenOk()) sync();
+    }
+    // Must run straight from a tap so the Google window may open.
+    function connect() {
+      if (!clientId) return set('nocfg');
+      if (!tokenClient) makeClient();
+      if (!tokenClient) { set('error', 'Layanan login Google belum termuat. Periksa internet lalu tap lagi.'); loadGis().then(makeClient).catch(() => {}); return; }
+      tokenClient.requestAccessToken({ prompt: state.connected ? '' : 'consent' });
+    }
+    async function disconnect() {
+      try { if (token && window.google) google.accounts.oauth2.revoke(token, () => {}); } catch (e) {}
+      token = null; tokenExp = 0; state = { connected: false };
+      await kv.del('gToken'); await kv.set('drive', state);
+      set(clientId ? 'off' : 'nocfg');
+    }
+    async function setClientId(id) {
+      clientId = id; tokenClient = null; await kv.set('gClientId', id);
+      if (id) { try { await loadGis(); makeClient(); } catch (e) {} }
+      set(!id ? 'nocfg' : state.connected ? (tokenOk() ? 'idle' : 'needauth') : 'off');
+    }
+
+    async function api(path, opt = {}, upload = false) {
+      if (!tokenOk()) throw { status: 401 };
+      const res = await fetch((upload ? UP : API) + path, { ...opt, headers: { ...(opt.headers || {}), Authorization: 'Bearer ' + token } });
+      if (!res.ok) { let m = ''; try { m = (await res.json()).error.message; } catch (e) {} throw { status: res.status, message: m }; }
+      return res;
+    }
+    const enc = encodeURIComponent;
+    async function list(q) {
+      let files = [], pt = '';
+      do {
+        const r = await (await api(`/files?q=${enc(q)}&fields=${enc('nextPageToken,files(id,name,createdTime)')}&pageSize=1000&spaces=drive${pt ? '&pageToken=' + enc(pt) : ''}`)).json();
+        files = files.concat(r.files || []); pt = r.nextPageToken || '';
+      } while (pt);
+      return files;
+    }
+    async function ensureFolder() {
+      if (state.folderId) {
+        try { const r = await (await api(`/files/${state.folderId}?fields=id,trashed`)).json(); if (!r.trashed) return state.folderId; }
+        catch (e) { if (e.status === 401) throw e; }
+      }
+      const found = await list(`name='${FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+      let id = found[0] && found[0].id;
+      if (!id) id = (await (await api('/files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: FOLDER, mimeType: 'application/vnd.google-apps.folder' }) })).json()).id;
+      state.folderId = id; await kv.set('drive', state);
+      return id;
+    }
+    async function createFile(name, folderId, blob, type) {
+      const b = 'bhp' + Math.random().toString(36).slice(2);
+      const body = new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [folderId] })}\r\n--${b}\r\nContent-Type: ${type}\r\n\r\n`, blob, `\r\n--${b}--`]);
+      return (await (await api('/files?uploadType=multipart&fields=id', { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${b}` }, body }, true)).json()).id;
+    }
+    const updateFile = (id, blob, type) => api(`/files/${id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': type }, body: blob }, true);
+    const trashFile = id => api(`/files/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+    const extOf = t => (t || '').includes('pdf') ? 'pdf' : (t || '').includes('png') ? 'png' : (t || '').includes('webp') ? 'webp' : 'jpg';
+
+    async function sync() {
+      if (!state.connected) return;
+      if (running) { again = true; return; }
+      if (!tokenOk()) return set('needauth');
+      if (!navigator.onLine) return set('offline');
+      running = true; set('syncing');
+      try {
+        const folderId = await ensureFolder();
+        const files = await list(`'${folderId}' in parents and trashed=false`);
+        const dataFile = files.find(f => f.name === DATA);
+        let remote = { loans: [], deleted: [] };
+        if (dataFile) remote = await (await api(`/files/${dataFile.id}?alt=media`)).json();
+        const local = { loans: await idb.all('loans'), deleted: (await kv.get('deleted')) || [], kunci: (await kv.get('kunci')) || null };
+        const merged = mergeBooks(local, remote);
+
+        const keep = new Set(merged.loans.map(l => l.id));
+        for (const l of local.loans) if (!keep.has(l.id)) await idb.del('loans', l.id);
+        for (const l of merged.loans) { const cur = local.loans.find(x => x.id === l.id); if (!cur || cur.updatedAt !== l.updatedAt) await idb.put('loans', l); }
+        await kv.set('deleted', merged.deleted);
+        if (merged.kunci && (!local.kunci || merged.kunci.updatedAt !== local.kunci.updatedAt || merged.kunci.hash !== local.kunci.hash)) { await kv.set('kunci', merged.kunci); onKunciFromDrive(merged.kunci); }
+
+        // receipt photos: upload what Drive lacks, download what this device lacks
+        const refs = new Map();
+        merged.loans.forEach(l => [l.buktiPinjam, ...(l.pembayaran || []).map(p => p.bukti)].forEach(b => { if (b && b.id) refs.set(b.id, b); }));
+        const remoteBlobs = new Map();
+        files.forEach(f => { const m = /^bukti-([A-Za-z0-9_-]+)\.[a-z]+$/.exec(f.name); if (m) remoteBlobs.set(m[1], f); });
+        const localIds = new Set(await idb.keys('blobs'));
+        let fresh = new Set();
+        for (const [id, b] of refs) {
+          if (localIds.has(id) && !remoteBlobs.has(id)) {
+            const rec = await idb.get('blobs', id);
+            await createFile(`bukti-${id}.${extOf(rec.type)}`, folderId, rec.blob, rec.type || 'application/octet-stream');
+          } else if (!localIds.has(id) && remoteBlobs.has(id)) {
+            const blob = await (await api(`/files/${remoteBlobs.get(id).id}?alt=media`)).blob();
+            await idb.put('blobs', { id, blob, type: b.contentType || blob.type, name: b.nama || '', createdAt: Date.now() });
+          }
+        }
+        // tidy: only photos that no loan uses any more, and only when they are old enough not to belong to a save in progress
+        const dayAgo = new Date(Date.now() - 86400000).toISOString();
+        for (const [id, f] of remoteBlobs) if (!refs.has(id) && f.createdTime && f.createdTime < dayAgo) await trashFile(f.id);
+        for (const id of localIds) {
+          if (refs.has(id)) continue;
+          const rec = await idb.get('blobs', id);
+          if (rec && rec.createdAt && Date.now() - rec.createdAt > 3600000) await assets.delete(id);
+        }
+
+        const json = new Blob([JSON.stringify({ app: 'buku-hutang-piutang', v: 1, savedAt: nowIso(), loans: merged.loans, deleted: merged.deleted, kunci: merged.kunci })], { type: 'application/json' });
+        if (dataFile) await updateFile(dataFile.id, json, 'application/json');
+        else await createFile(DATA, folderId, json, 'application/json');
+
+        state.lastSync = nowIso(); await kv.set('drive', state);
+        await afterChange(false);
+        set('idle');
+      } catch (e) {
+        if (e && (e.status === 401 || (e.status === 403 && /auth|scope|permission|insufficient/i.test(e.message || '')))) { token = null; await kv.del('gToken'); set('needauth'); }
+        else set('error', navigator.onLine ? (e && e.message ? e.message : 'Coba lagi nanti.') : 'Tidak ada internet.');
+      } finally {
+        running = false;
+        if (again) { again = false; setTimeout(sync, 500); }
+      }
+    }
+    function schedule() {
+      if (!state.connected) return;
+      if (!tokenOk()) { if (status !== 'needauth') set('needauth'); return; }
+      clearTimeout(timer); timer = setTimeout(sync, 2500);
+    }
+    return {
+      init, connect, disconnect, setClientId, sync, schedule,
+      connected: () => !!state.connected,
+      info: () => ({ status, msg, clientId, connected: !!state.connected, lastSync: state.lastSync || null, tokenOk: tokenOk() })
+    };
+  })();
+
+  // ---------- Drive UI ----------
+  const hhmm = iso => { const d = new Date(iso); return `${pad(d.getHours())}.${pad(d.getMinutes())}`; };
+  const whenText = iso => { if (!iso) return 'belum pernah'; const d = new Date(iso); return (todayStr() === `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` ? 'hari ini ' : tglID(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`) + ' ') + hhmm(iso); };
+  function paintDrive() {
+    const i = Drive.info();
+    const chip = $('#btnDrive'), lbl = $('#driveLbl');
+    const map = {
+      loading: ['', 'Google Drive'],
+      nocfg: ['warn', 'Drive belum diatur'],
+      off: ['', 'Hubungkan Drive'],
+      needauth: ['warn', 'Drive: tap untuk sinkron'],
+      syncing: ['busy', 'Menyinkronkan…'],
+      idle: ['ok', i.lastSync ? `Tersinkron ${hhmm(i.lastSync)}` : 'Drive terhubung'],
+      offline: ['warn', 'Offline, belum sinkron'],
+      error: ['bad', 'Sinkron gagal']
+    }[i.status] || ['', 'Google Drive'];
+    chip.className = 'btn small chip ' + map[0]; lbl.textContent = map[1];
+
+    const st = $('#drvStatus'), acts = $('#drvActions'), cfg = $('#drvCfg');
+    const head = {
+      loading: 'Memuat…', nocfg: 'Belum diatur', off: 'Belum terhubung', needauth: 'Terhubung, perlu izin ulang',
+      syncing: 'Sedang menyinkronkan…', idle: 'Terhubung', offline: 'Tidak ada internet', error: 'Sinkronisasi gagal'
+    }[i.status] || '';
+    const detail = {
+      nocfg: 'Masukkan OAuth Client ID terlebih dahulu.',
+      off: 'Tap "Hubungkan Google Drive", pilih akun Google Anda, lalu izinkan akses.',
+      needauth: 'Izin dari Google berlaku sekitar 1 jam. Tap "Sinkronkan sekarang" untuk lanjut.',
+      offline: 'Perubahan tersimpan di perangkat ini dan akan disinkronkan saat online.',
+      error: i.msg
+    }[i.status] || '';
+    st.innerHTML = `<b>${esc(head)}</b>${i.connected ? `<span class="note">Terakhir sinkron: ${esc(whenText(i.lastSync))}</span>` : ''}${detail ? `<span class="note">${esc(detail)}</span>` : ''}${i.msg && i.status !== 'error' ? `<span class="err">${esc(i.msg)}</span>` : ''}`;
+    cfg.hidden = !(i.status === 'nocfg' || cfg.dataset.open === '1');
+    if (!cfg.hidden && !$('#drvClient').value) $('#drvClient').value = i.clientId || '';
+    const b = [];
+    if (i.clientId && !i.connected) b.push('<button class="btn primary" type="button" data-drv="connect">Hubungkan Google Drive</button>');
+    if (i.connected) b.push(`<button class="btn primary" type="button" data-drv="sync" ${i.status === 'syncing' ? 'disabled' : ''}>Sinkronkan sekarang</button>`);
+    if (i.connected) b.push('<button class="btn" type="button" data-drv="disconnect">Putuskan</button>');
+    if (i.clientId) b.push('<button class="btn" type="button" data-drv="cfg">Ubah Client ID</button>');
+    acts.innerHTML = b.join('');
+  }
+  $('#btnDrive').addEventListener('click', () => {
+    if (Drive.info().status === 'needauth') { Drive.connect(); return; }
+    paintDrive(); $('#dlgDrive').showModal();
+  });
+  $('#drvActions').addEventListener('click', e => {
+    const t = e.target.closest('[data-drv]'); if (!t) return;
+    const a = t.dataset.drv;
+    if (a === 'connect') Drive.connect();
+    else if (a === 'sync') { if (Drive.info().tokenOk) Drive.sync(); else Drive.connect(); }
+    else if (a === 'disconnect') Drive.disconnect().then(() => toast('Google Drive diputuskan. Data di perangkat ini tetap ada.'));
+    else if (a === 'cfg') { $('#drvCfg').dataset.open = '1'; $('#drvClient').value = Drive.info().clientId || ''; paintDrive(); $('#drvClient').focus(); }
+  });
+  $('#drvCfg').addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = $('#drvClient').value.trim(), err = $('#drvErr');
+    if (v && !/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(v)) { err.textContent = 'Format Client ID tidak cocok. Bentuknya seperti 1234567890-abc123.apps.googleusercontent.com'; err.hidden = false; return; }
+    err.hidden = true; $('#drvCfg').dataset.open = '';
+    await Drive.setClientId(v);
+    toast(v ? 'Client ID tersimpan' : 'Client ID dihapus');
+  });
+  window.addEventListener('online', () => Drive.schedule());
+
+  // ---------- start ----------
+  const boot = async () => {
+    if (!window.indexedDB) { setLockMode('error', 'Browser ini tidak mendukung penyimpanan di perangkat. Buka di Safari atau Chrome, bukan mode Pribadi.'); return; }
+    if (!window.crypto || !crypto.subtle) { setLockMode('error', 'Buka aplikasi ini lewat alamat https:// agar kata sandi bisa dipakai.'); return; }
+    try { idbConn = await idbOpen(); }
+    catch (e) { setLockMode('error', 'Penyimpanan di perangkat ini tidak bisa dibuka. Pastikan tidak memakai mode Pribadi, lalu muat ulang.'); return; }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    sampleNs = {}; sampleImages = true;   // on-device OCR is always offered
+    const snap = await kunciRef.get();
+    kunci = snap.exists ? snap.data() : null;
+    await afterChange(false);
+    setLockMode(kunci ? 'unlock' : 'setup');
+    await Drive.init();
+    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  };
+  boot().catch(() => setLockMode('error'));
+
+})();
+</script>
+</body>
+</html>
