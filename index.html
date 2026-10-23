@@ -292,6 +292,7 @@ legend{padding:0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06e
         <div class="grid">
           <label class="f"><span>Jenis bunga</span>
             <select id="fBungaTipe">
+              <option value="persen_tetap">Nominal tetap % (sekali untuk seluruh periode)</option>
               <option value="none">Tanpa bunga</option>
               <option value="bulan">% per bulan (flat)</option>
               <option value="tahun">% per tahun (flat)</option>
@@ -398,6 +399,7 @@ legend{padding:0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06e
       case 'bulan': return p * v / 100 * h / 30;
       case 'tahun': return p * v / 100 * h / 365;
       case 'hari': return p * v / 100 * h;
+      case 'persen_tetap': return p * v / 100;
       case 'nominal': return v;
       default: return 0;
     }
@@ -408,6 +410,7 @@ legend{padding:0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06e
       case 'bulan': return `${p} × ${v}% × ${h}/30 hari`;
       case 'tahun': return `${p} × ${v}% × ${h}/365 hari`;
       case 'hari': return `${p} × ${v}% × ${h} hari`;
+      case 'persen_tetap': return `${p} × ${v}% (sekali, sampai jatuh tempo)`;
       case 'nominal': return 'bunga nominal tetap';
       default: return 'tanpa bunga';
     }
@@ -902,7 +905,7 @@ legend{padding:0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06e
       <dl class="facts">
         <div><dt>Tanggal pinjam</dt><dd>${tglID(l.tglPinjam)}</dd></div>
         <div><dt>Jatuh tempo</dt><dd>${tglID(l.jatuhTempo)} · ${l.hari} hari</dd></div>
-        <div><dt>Bunga</dt><dd>${l.bungaTipe === 'none' ? 'Tanpa bunga' : l.bungaTipe === 'nominal' ? rp(l.bungaVal) + ' (tetap)' : String(l.bungaVal).replace('.', ',') + '% per ' + ({bulan:'bulan', tahun:'tahun', hari:'hari'})[l.bungaTipe] + ' (flat)'}</dd></div>
+        <div><dt>Bunga</dt><dd>${l.bungaTipe === 'none' ? 'Tanpa bunga' : l.bungaTipe === 'nominal' ? rp(l.bungaVal) + ' (tetap)' : l.bungaTipe === 'persen_tetap' ? String(l.bungaVal).replace('.', ',') + '% tetap untuk seluruh periode (' + rp(bunga(l)) + ')' : String(l.bungaVal).replace('.', ',') + '% per ' + ({bulan:'bulan', tahun:'tahun', hari:'hari'})[l.bungaTipe] + ' (flat)'}</dd></div>
         <div><dt>Denda telat</dt><dd>${l.denda ? (l.dendaTipe === 'nominal' ? rp(l.denda) : String(l.denda).replace('.', ',') + '% pokok') + ' per hari' : 'Tidak ada'}</dd></div>
         ${l.catatan ? `<div style="grid-column:1/-1"><dt>Catatan</dt><dd>${esc(l.catatan)}</dd></div>` : ''}
       </dl>
