@@ -722,26 +722,33 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
       }
       return null;
     }
+    const LEAD = /^(?:name|nama|account(?:\s*(?:no\.?|number))?|acc\.?|no\.?|number|rekening|bank)\b\.?\s*[:\-–=]?\s*/i;
+    const STOP = /^(transaction|transfer|source|reference|remarks?|jenis|sumber|tanggal|nominal|biaya|total|berita|keterangan|catatan|status|date|time|amount)\b/i;
+    const AN_RE = /(?:\ba\s?[.\/]\s?n\b\.?|\ban\.\s|atas nama)\s*[:.]?\s*(.+)$/i;
     function findParty(labelRe) {
+      let name = null, bank = null, acct = null;
       for (let i = 0; i < lines.length; i++) {
         const m = labelRe.exec(lines[i]); if (!m) continue;
-        const rest = lines[i].slice(m.index + m[0].length).replace(/^\s*[:\-–=]\s*/, '').trim();
-        let name = null, bank = null, acct = null;
-        for (const c of [rest, lines[i + 1], lines[i + 2], lines[i + 3]]) {
-          if (!c) continue;
-          if (c !== rest && labelRe.test(c)) break;
-          const an = /(?:\ba\s?[.\/]\s?n\b\.?|\ban\.\s|atas nama)\s*[:.]?\s*(.+)$/i.exec(c);
-          const parts = (an ? an[1] : c).split(/\s+[-–]\s+/);
-          for (const part of parts) { const v = part.trim(); if (!name && nameLike(v)) name = v; }
+        let rest = lines[i].slice(m.index + m[0].length).replace(/^\s*[:\-–=]\s*/, '').trim();
+        for (let k = 0; k < 3 && LEAD.test(rest); k++) rest = rest.replace(LEAD, '').trim();
+        const cands = [rest];
+        for (let j = 1; j <= 3 && lines[i + j]; j++) { if (labelRe.test(lines[i + j]) || STOP.test(lines[i + j])) break; cands.push(lines[i + j]); }
+        let nameAt = -1;
+        cands.forEach((c, idx) => {
+          if (!c) return;
+          const an = AN_RE.exec(c);
+          for (const part of (an ? an[1] : c).split(/\s+[-–]\s+/)) { const v = part.trim(); if (!name && nameLike(v)) { name = v; nameAt = idx; } }
           if (!bank) { const b = findBanks(c); if (b.length) bank = b[0]; }
           if (!acct) { const a = /([0-9*][0-9*xX•\s-]{6,}[0-9])/.exec(c); if (a && /\d{3,}/.test(a[1]) && !/[.,]\d{3}/.test(a[1])) acct = a[1].replace(/\s+/g, ''); }
-        }
-        if (name || bank || acct) return { name, bank, acct };
+        });
+        // a long name that wraps onto the next line in two-column receipts
+        const nx = cands[nameAt + 1];
+        if (nameAt === 0 && nx && nameLike(nx) && name === name.toUpperCase() && nx === nx.toUpperCase() && nx.split(' ').length <= 3) name += ' ' + nx;
       }
-      return null;
+      return name || bank || acct ? { name, bank, acct } : null;
     }
-    const rec = findParty(/(?:\b(?:nama penerima|penerima|rekening tujuan|tujuan|kepada|transfer ke|recipient|beneficiary|to)\b|^ke\b)/i);
-    const snd = findParty(/\b(nama pengirim|pengirim|rekening sumber|sumber dana|dari|from|sender)\b/i);
+    const rec = findParty(/(?:\b(?:nama penerima|penerima|beneficiary|rekening tujuan|tujuan|kepada|transfer ke|recipient|transfer to|to)\b|^ke\b)/i);
+    const snd = findParty(/\b(nama pengirim|pengirim|rekening sumber|sumber dana|source of funds?|dari|from|sender)\b/i);
     if (rec) { out.nama_penerima = rec.name; out.bank_penerima = rec.bank; out.rekening_penerima = rec.acct; }
     if (snd) { out.nama_pengirim = snd.name; out.bank_pengirim = snd.bank; }
     if (!out.nama_penerima) {
@@ -759,9 +766,19 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
     }
 
     // ---- reference, note, status
-    const ref = valueAfter(/(?:\b(?:no\.?\s*ref(?:erensi)?|nomor referensi|reference(?:\s*(?:no|number))?|ref\.?\s*no|id transaksi|transaction id|no\.?\s*transaksi|kode transaksi)\b|^ref\b\.?)/i);
-    if (ref) { const t = /([A-Z0-9][A-Z0-9-]{5,})/i.exec(ref); if (t && /\d/.test(t[1])) out.no_referensi = t[1]; }
-    const ber = valueAfter(/\b(berita|keterangan|catatan|remark|description|deskripsi|pesan)\b/i);
+    const REF_RE = /(?:\b(?:no\.?\s*ref(?:erensi)?|nomor referensi|reference(?:\s*(?:no|number))?|ref\.?\s*no|id transaksi|transaction id|no\.?\s*transaksi|kode transaksi)\b\.?|^ref\b\.?)/i;
+    for (let i = 0; i < lines.length && !out.no_referensi; i++) {
+      const m = REF_RE.exec(lines[i]); if (!m) continue;
+      let rest = lines[i].slice(m.index + m[0].length).replace(/^\s*[:#\-–=.]\s*/, '').trim(), at = i;
+      if (!rest && lines[i + 1]) { rest = lines[i + 1]; at = i + 1; }
+      const t = /([A-Z0-9][A-Z0-9-]{5,})/i.exec(rest);
+      if (!t || !/\d/.test(t[1])) continue;
+      let v = t[1];
+      const nx = lines[at + 1];
+      if (rest === t[1] && nx && /^[A-Z0-9-]{6,}$/i.test(nx) && /\d/.test(nx)) v += nx;   // number wrapped onto the next line
+      out.no_referensi = v;
+    }
+    const ber = valueAfter(/\b(berita|keterangan|catatan|remarks?|description|deskripsi|pesan|news)\b/i);
     if (ber && !LABELS.test(ber.split(' ')[0]) && !/^(?:rp|idr)/i.test(ber) && ber.length <= 80) out.berita = ber;
     if (/(berhasil|sukses|successful|success|completed|selesai)/i.test(raw)) out.status = 'Berhasil';
     out.is_bukti_transfer = !!(out.nominal || /(transfer|berhasil|sukses|rekening|bukti|transaksi)/i.test(raw));
