@@ -650,6 +650,8 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
     if (!ocrLoading) ocrLoading = (async () => {
       if (!window.Tesseract) await loadScript(TESS_URL);
       ocrWorker = await Tesseract.createWorker(['ind', 'eng'], 1, { logger: m => ocrProgress && ocrProgress(m) });
+      // read row by row so a label and its value stay on one line (two-column receipts)
+      try { if (ocrWorker.setParameters) await ocrWorker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' }); } catch (e) {}
       return ocrWorker;
     })().catch(e => { ocrLoading = null; throw { code: navigator.onLine ? 'ocr_load' : 'offline' }; });
     return ocrLoading;
@@ -753,7 +755,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
 
     // ---- label/value helpers
     const LABELS = /\b(rekening|account|bank|tujuan|penerima|pengirim|sumber|transfer|berhasil|sukses|nominal|jumlah|biaya|tanggal|waktu|referensi|catatan|berita|keterangan|total|status|metode|layanan|detail|bukti|transaksi|receipt|successful|kepada|dari)\b/i;
-    const nameLike = v => !!v && /^[A-Za-z][A-Za-z .,'-]{2,50}$/.test(v) && !LABELS.test(v) && !findBanks(v).length && v.replace(/[^A-Za-z]/g, '').length >= 3;
+    const nameLike = v => !!v && /^[A-Za-z][A-Za-z .,'-]{2,50}$/.test(v) && !LABELS.test(v) && !findBanks(v).length && v.replace(/[^A-Za-z]/g, '').length >= 4 && !/^(?:[A-Z])\1*$/.test(v);
     function valueAfter(re) {
       for (let i = 0; i < lines.length; i++) {
         const m = re.exec(lines[i]); if (!m) continue;
@@ -770,7 +772,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
       let name = null, bank = null, acct = null;
       for (let i = 0; i < lines.length; i++) {
         const m = labelRe.exec(lines[i]); if (!m) continue;
-        let rest = lines[i].slice(m.index + m[0].length).replace(/^\s*[:\-–=]\s*/, '').trim();
+        let rest = lines[i].slice(m.index + m[0].length).replace(/^[\s:\-–=+_]+/, '').trim();
         for (let k = 0; k < 3 && LEAD.test(rest); k++) rest = rest.replace(LEAD, '').trim();
         const cands = [rest];
         for (let j = 1; j <= 3 && lines[i + j]; j++) { if (labelRe.test(lines[i + j]) || STOP.test(lines[i + j])) break; cands.push(lines[i + j]); }
@@ -778,7 +780,7 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
         cands.forEach((c, idx) => {
           if (!c) return;
           const an = AN_RE.exec(c);
-          for (const part of (an ? an[1] : c).split(/\s+[-–]\s+/)) { const v = part.trim(); if (!name && nameLike(v)) { name = v; nameAt = idx; } }
+          for (const part of (an ? an[1] : c).split(/\s+[-–]\s+/)) { const v = part.replace(/\s*[\/|;:{}\[\]].*$/, '').replace(/\s+[A-Za-z]$/, '').trim(); if (!name && nameLike(v)) { name = v; nameAt = idx; } }
           if (!bank) { const b = findBanks(c); if (b.length) bank = b[0]; }
           if (!acct) { const a = /([0-9*][0-9*xX•\s-]{6,}[0-9])/.exec(c); if (a && /\d{3,}/.test(a[1]) && !/[.,]\d{3}/.test(a[1])) acct = a[1].replace(/\s+/g, ''); }
         });
@@ -819,8 +821,30 @@ div.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--muted);min
       if (rest === t[1] && nx && /^[A-Z0-9-]{6,}$/i.test(nx) && /\d/.test(nx)) v += nx;   // number wrapped onto the next line
       out.no_referensi = v;
     }
-    const ber = valueAfter(/\b(berita|keterangan|catatan|remarks?|description|deskripsi|pesan|news)\b/i);
-    if (ber && !LABELS.test(ber.split(' ')[0]) && !/^(?:rp|idr)/i.test(ber) && ber.length <= 80) out.berita = ber;
+    // Remark / berita: value may sit on the same line, the next line, or wrap onto a second line
+    const REM_RE = /\b(berita|keterangan|catatan|remarks?|description|deskripsi|pesan|news)\b/i;
+    const ROW_LABEL = /^(?:[a-z]{2,}\.?\s+){0,3}(?:name|nama|account|rekening|type|jenis|currency|mata uang|source|sumber|amount|nominal|jumlah|reference|referensi|ref|no|nomor|date|tanggal|waktu|time|status|biaya|fee|total|cabang|branch|penyetor|penerima|pengirim|handphone|phone|teller)\b\.?\s*(?:[:._=-]|$)/i;
+    const isLabelLine = l => ROW_LABEL.test(l) || REM_RE.test(l.split(/\s+/)[0] || '');
+    const remarkLike = l => /\d\s*(?:%|persen)/i.test(l) || /\d\s*(?:d|days?|hari|hr|h|minggu|weeks?|bulan|bln|months?)\b/i.test(l);
+    for (let i = 0; i < lines.length && !out.berita; i++) {
+      const m = REM_RE.exec(lines[i]); if (!m || m.index > 3) continue;
+      let at = i, v = lines[i].slice(m.index + m[0].length).replace(/^[\s:;_=\-–.]+/, '').trim();
+      if (!v) { at = i + 1; v = lines[at] || ''; }
+      if (!v || isLabelLine(v) || /^(?:rp|idr)\b/i.test(v)) continue;
+      const nx = lines[at + 1];
+      if (nx && !isLabelLine(nx) && !REF_RE.test(nx) && !/\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{8,}\b/i.test(nx) && (remarkLike(nx) || (nx.length <= 30 && !/\d{6,}/.test(nx)))) v += ' ' + nx;   // wrapped remark
+      if (v.length <= 100) out.berita = v.trim();
+    }
+    // fallback: any line that reads like a remark (has % and/or a day count) but is not a labelled row
+    if (!out.berita || !remarkLike(out.berita)) {
+      const idx = lines.findIndex(l => remarkLike(l) && /%|persen/i.test(l) && !isLabelLine(l) && !/(?:rp|idr)\s*\d/i.test(l));
+      if (idx >= 0) {
+        let v = lines[idx];
+        const pv = lines[idx - 1];
+        if (pv && !isLabelLine(pv) && /^[A-Za-z][A-Za-z0-9 .'-]{2,40}$/.test(pv) && !/(?:rp|idr)\s*\d/i.test(pv) && !findBanks(pv).length && pv !== out.nama_penerima && !(out.nama_penerima || '').includes(pv)) v = pv + ' ' + v;
+        out.berita = v.trim();
+      }
+    }
     if (/(berhasil|sukses|successful|success|completed|selesai)/i.test(raw)) out.status = 'Berhasil';
     out.is_bukti_transfer = !!(out.nominal || /(transfer|berhasil|sukses|rekening|bukti|transaksi)/i.test(raw));
     return out;
